@@ -1,0 +1,267 @@
+.birthday-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.birthday-list {
+  margin-bottom: 20px;
+
+  h3 {
+    margin-bottom: 15px;
+    color: var(--dark);
+  }
+}
+
+.no-birthdays {
+  color: #999;
+  text-align: center;
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-style: italic;
+}
+
+.birthdays-list {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.birthday-item {
+  display: flex;
+  gap: 15px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #ffd43b;
+  transition: all 0.3s ease;
+  align-items: flex-start;
+
+  &.upcoming {
+    background: #fffbea;
+    border-left-color: var(--warning);
+  }
+
+  &:hover {
+    background: #fffbea;
+    transform: translateX(4px);
+  }
+}
+
+.birthday-icon {
+  font-size: 1.5em;
+  min-width: 40px;
+  text-align: center;
+}
+
+.birthday-info {
+  flex: 1;
+
+  h4 {
+    margin: 0 0 5px 0;
+    color: var(--dark);
+  }
+
+  .birthday-date {
+    font-size: 0.9em;
+    color: var(--primary);
+    margin: 0 0 5px 0;
+    font-weight: 500;
+  }
+
+  .birthday-gregorian {
+    font-size: 0.85em;
+    color: #999;
+    margin: 0;
+  }
+}
+
+.reminder-badge {
+  font-size: 0.85em;
+  background: #fff3e0;
+  color: var(--warning);
+  padding: 6px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* Form Styles */
+
+.form-container {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+
+  h3 {
+    margin-bottom: 20px;
+    color: var(--dark);
+  }
+
+  h4 {
+    margin: 20px 0 15px 0;
+    color: var(--dark);
+    font-size: 1em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+
+    &:first-of-type {
+      margin-top: 0;
+    }
+  }
+}
+
+form {
+  display: grid;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+
+  label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--dark);
+  }
+
+  input[type='text'],
+  input[type='number'],
+  select {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 1em;
+    transition: all 0.3s ease;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+    }
+  }
+
+  &.checkbox {
+    flex-direction: row;
+    align-items: center;
+    margin: 0;
+
+    label {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: normal;
+
+      input[type='checkbox'] {
+        margin: 0;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+    }
+  }
+}
+
+.form-section {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+  margin-bottom: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &.btn-primary {
+    background: var(--primary);
+    color: white;
+
+    &:hover {
+      background: var(--primary-dark);
+    }
+  }
+
+  &.btn-success {
+    background: var(--success);
+    color: white;
+
+    &:hover {
+      background: #48c969;
+    }
+  }
+
+  &.btn-secondary {
+    background: #e0e0e0;
+    color: var(--dark);
+
+    &:hover {
+      background: #d0d0d0;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .birthday-container {
+    padding: 15px;
+  }
+
+  .birthday-item {
+    flex-direction: column;
+    align-items: flex-start;
+
+    .reminder-badge {
+      align-self: flex-start;
+      margin-top: 10px;
+    }
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+}

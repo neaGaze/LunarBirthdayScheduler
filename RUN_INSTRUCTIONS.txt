@@ -1,0 +1,152 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║              NEPALI CALENDAR - COMPLETE SETUP & RUN INSTRUCTIONS               ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🚀 QUICK START (5 minutes)
+
+STEP 1: Create Environment File
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a file named ".env.local" in the project root with:
+
+  VITE_GOOGLE_CLIENT_ID=your_client_id_from_google_cloud
+  VITE_GOOGLE_CLIENT_SECRET=your_client_secret_from_google_cloud
+  VITE_REDIRECT_URI=http://localhost:3000/callback
+
+HOW TO GET GOOGLE CREDENTIALS:
+  1. Go to https://console.cloud.google.com/
+  2. Create a new project named "Nepali Calendar"
+  3. Enable Google Calendar API
+  4. Create OAuth 2.0 credentials (Web application)
+  5. Add http://localhost:3000/callback as redirect URI
+  6. Copy Client ID and Secret to .env.local
+
+STEP 2: Install Dependencies
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run this command in your terminal:
+
+  npm install
+
+Wait for installation to complete.
+
+STEP 3: Run the Application
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Choose ONE of these methods:
+
+METHOD A: Using Python (if Python is installed)
+  python -m http.server 3000
+  Open browser: http://localhost:3000
+
+METHOD B: Using http-server
+  npm install -g http-server
+  http-server . -p 3000 -o
+
+METHOD C: Using VS Code Live Server (if VS Code)
+  1. Install "Live Server" extension in VS Code
+  2. Right-click on index.html
+  3. Select "Open with Live Server"
+
+METHOD D: Using Vite (advanced)
+  npm install vite @vitejs/plugin-react --save-dev
+  npm run dev
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 TESTING THE APPLICATION
+
+1. Open http://localhost:3000 in your browser
+2. Click "Sign in with Google"
+3. Login with your Google account
+4. Grant calendar permissions
+5. You should see the dashboard
+
+From here you can:
+  ✓ View the calendar with festivals
+  ✓ Add custom events
+  ✓ Track lunar birthdays
+  ✓ Configure sync settings
+  ✓ Sync events to Google Calendar
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 IMPORTANT FILES
+
+Main Files:
+  - index.html              Main HTML entry point
+  - src/main.tsx            React entry point
+  - src/App.tsx             Main app component
+
+Components:
+  - src/components/         All React components
+  - src/context/            Global state management
+  - src/services/           Backend services (pre-integrated)
+  - src/utils/              Utility functions
+
+Configuration:
+  - package.json            Project configuration
+  - tsconfig.json           TypeScript configuration
+  - .env.local              Environment variables (create this)
+
+Documentation:
+  - README.md               Main documentation
+  - README-FRONTEND.md      Frontend-specific guide
+  - SETUP_GUIDE.md          Detailed setup instructions
+  - QUICKSTART.md           Quick reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 USEFUL COMMANDS
+
+npm install                 Install dependencies
+npm run build-backend       Compile backend services
+npm run example             Run backend examples
+npm run build               Build for production
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ TROUBLESHOOTING
+
+Issue: "Module not found" error
+Solution: Make sure you created .env.local with Google credentials
+
+Issue: Cannot login with Google
+Solution:
+  1. Verify credentials in .env.local
+  2. Check Google Cloud Console has Calendar API enabled
+  3. Verify redirect URI is correct (http://localhost:3000/callback)
+
+Issue: Events not appearing
+Solution:
+  1. Make sure you're logged in
+  2. Try adding an event from the Events tab
+  3. Check browser console for errors (F12)
+
+Issue: "patch-package" error
+Solution:
+  1. This error is from Vite
+  2. Simply use Method A, B, or C above
+  3. Skip Vite and use Python/http-server instead
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 NEXT STEPS
+
+After Getting Started:
+  1. Read README-FRONTEND.md for detailed information
+  2. Read SETUP_GUIDE.md for step-by-step Google Cloud setup
+  3. Customize colors in src/index.css
+  4. Add more festivals to src/utils/nepaliCalendar.ts
+  5. Deploy to production (Vercel, Netlify, etc.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ YOU'RE ALL SET!
+
+Your Nepali Calendar application is ready to run.
+Follow the steps above and you'll be up and running in 5 minutes!
+
+Happy coding! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
