@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { gregorianToNepali, nepaliToGregorian } from '../utils/nepaliCalendar.js';
+import { gregorianToNepali, nepaliToGregorian, getNepaliMonthName, calculateTithi, TITHI_NAMES } from '../utils/nepaliCalendar.js';
 import './Calendar.css';
 
 const Calendar: React.FC = () => {
@@ -34,7 +34,7 @@ const Calendar: React.FC = () => {
         day: day,
       };
       const nepaliDate = gregorianToNepali(gregorianDate);
-
+      const tithi = calculateTithi(gregorianDate);
 
       // Check for events on this date
       const dayEvents = events.filter(
@@ -72,7 +72,10 @@ const Calendar: React.FC = () => {
         >
           <div className="day-dates">
             <div className="day-number">{day}</div>
-            <div className="day-nepali">{nepaliDate.month}/{nepaliDate.day}</div>
+            <div className="day-nepali">{getNepaliMonthName(nepaliDate.month)} {nepaliDate.day}</div>
+          </div>
+          <div className="day-tithi" title={tithi.name}>
+            {tithi.name}
           </div>
 
           {hasEvent && (
@@ -136,6 +139,18 @@ const Calendar: React.FC = () => {
       <div className="calendar-grid">{renderCalendarDays()}</div>
 
       <div className="calendar-legend">
+        <div className="legend-item">
+          <span className="legend-date">15</span>
+          Gregorian Date
+        </div>
+        <div className="legend-item">
+          <span className="legend-nepali">Kartik 15</span>
+          Nepali Date
+        </div>
+        <div className="legend-item">
+          <span className="legend-tithi">Pratipad</span>
+          Tithi (Lunar Day)
+        </div>
         <div className="legend-item">
           <span className="legend-color festival"></span>
           Festival

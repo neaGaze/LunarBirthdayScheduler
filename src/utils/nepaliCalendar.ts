@@ -4,6 +4,22 @@
  * and Tithi (lunar day) calculations
  */
 
+// Nepali month names (1-12)
+export const NEPALI_MONTH_NAMES = [
+  'Baisakh',    // 1
+  'Jestha',     // 2
+  'Asar',       // 3
+  'Shrawan',    // 4
+  'Bhadra',     // 5
+  'Ashwin',     // 6
+  'Kartik',     // 7
+  'Mangsir',    // 8
+  'Poush',      // 9
+  'Magh',       // 10
+  'Falgun',     // 11
+  'Chaitra'     // 12
+];
+
 // Tithi names in Nepali calendar (1-30)
 export const TITHI_NAMES = [
   'Pratipad', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami',
@@ -121,6 +137,18 @@ export function calculateTithi(date: GregorianDate): TithiInfo {
     number: tithiNumber,
     phase: phase
   };
+}
+
+/**
+ * Get the Nepali month name from month number
+ * @param month - Month number (1-12)
+ * @returns Month name in English
+ */
+export function getNepaliMonthName(month: number): string {
+  if (month < 1 || month > 12) {
+    return 'Invalid';
+  }
+  return NEPALI_MONTH_NAMES[month - 1];
 }
 
 /**
