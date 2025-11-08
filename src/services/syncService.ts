@@ -86,7 +86,7 @@ export class SyncService {
         birthdays.forEach(birthday => {
           events.push({
             id: birthday.id,
-            title: `🎂 ${birthday.name}'s Birthday`,
+            title: `${birthday.name}'s Birthday`,
             nepaliDate: birthday.nepaliDate,
             gregorianDate: {
               year: new Date().getFullYear(),

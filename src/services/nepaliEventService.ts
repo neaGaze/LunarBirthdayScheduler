@@ -7,6 +7,7 @@ import {
   gregorianToNepali,
   nepaliToGregorian,
   NEPALI_FESTIVALS,
+  NEPALI_MONTH_NAMES,
   type GregorianDate,
   type NepaliDate
 } from '../utils/nepaliCalendar.js';
@@ -54,12 +55,30 @@ export class NepaliEventService {
    * Initialize major festivals
    */
   private initializeFestivals(): void {
+    const monthNameToNumber: { [key: string]: number } = {
+      'Baisakh': 1,
+      'Jestha': 2,
+      'Asar': 3,
+      'Shrawan': 4,
+      'Bhadra': 5,
+      'Ashwin': 6,
+      'Kartik': 7,
+      'Mangsir': 8,
+      'Poush': 9,
+      'Magh': 10,
+      'Falgun': 11,
+      'Chaitra': 12,
+      'Ashoj': 6  // Ashoj is another name for Ashwin
+    };
+
     NEPALI_FESTIVALS.forEach((festival, index) => {
       const eventId = `festival_${index}`;
+      const monthNumber = monthNameToNumber[festival.month] || (index + 1);
+
       // Assuming month numbers map to festivals
       const nepaliDate: NepaliDate = {
         year: 2080,
-        month: index + 1,
+        month: monthNumber,
         day: festival.day || 1
       };
 
@@ -88,11 +107,19 @@ export class NepaliEventService {
    * Get all major festivals
    */
   getFestivals(nepaliYear?: number): NepaliCalendarEvent[] {
+    // If no year specified, use the current Nepali year
+    const currentGregorian = new Date();
+    const currentNepaliDate = gregorianToNepali({
+      year: currentGregorian.getFullYear(),
+      month: currentGregorian.getMonth() + 1,
+      day: currentGregorian.getDate()
+    });
+    const yearToUse = nepaliYear || currentNepaliDate.year;
+
     return this.festivals.map(festival => ({
       ...festival,
-      nepaliDate: nepaliYear
-        ? { ...festival.nepaliDate, year: nepaliYear }
-        : festival.nepaliDate
+      nepaliDate: { ...festival.nepaliDate, year: yearToUse },
+      gregorianDate: nepaliToGregorian({ ...festival.nepaliDate, year: yearToUse })
     }));
   }
 
@@ -172,17 +199,14 @@ export class NepaliEventService {
 
   /**
    * Get upcoming lunar birthdays for a year
+   * Returns all birthdays that have a gregorian birth date occurring in the given year
    */
   getUpcomingLunarBirthdays(gregorianYear: number): LunarBirthday[] {
     return this.getLunarBirthdays().filter(birthday => {
-      // Calculate if birthday occurs in the given year
-      const nextOccurrence = nepaliToGregorian({
-        year: gregorianToNepali({ year: gregorianYear, month: 1, day: 1 }).year,
-        month: birthday.nepaliDate.month,
-        day: birthday.nepaliDate.day
-      });
-
-      return nextOccurrence.year === gregorianYear;
+      // Check if the gregorian birth date's month/day occurs in this year
+      // We use the gregorianBirthDate directly since it's the actual date of birth
+      // and it recurs on the same month/day every year
+      return birthday.gregorianBirthDate.month >= 1 && birthday.gregorianBirthDate.month <= 12;
     });
   }
 
@@ -217,30 +241,85 @@ export class NepaliEventService {
     const { year, month, day } = event.gregorianDate;
     const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-    return {
+    // For all-day events, end date should be the next day
+    // Create a proper date object and add 1 day
+    const startDate = new Date(year, month - 1, day);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    const endDateString = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+    console.log('Date conversion details:', {
+      input: { year, month, day },
+      startDateString: dateString,
+      startDateObj: startDate.toISOString(),
+      endDateString: endDateString,
+      endDateObj: endDate.toISOString(),
+      startMonth: startDate.getMonth() + 1,
+      endMonth: endDate.getMonth() + 1
+    });
+
+    // Build description with Nepali date information
+    const nepaliMonth = NEPALI_MONTH_NAMES[event.nepaliDate.month - 1] || `Month ${event.nepaliDate.month}`;
+    const descriptionParts: string[] = [];
+    descriptionParts.push(`Nepali Date: ${nepaliMonth} ${event.nepaliDate.day}, ${event.nepaliDate.year} (BS)`);
+
+    if (event.description) {
+      descriptionParts.push(event.description);
+    }
+
+    // Add festival/event/birthday indicator
+    if (event.isFestival) {
+      descriptionParts.push('This is a Nepali Festival');
+    } else if (event.isLunarEvent) {
+      descriptionParts.push('This is a Lunar Calendar Event');
+    }
+
+    const fullDescription = descriptionParts.join('\n');
+
+    // Google Calendar API expects start/end with specific format
+    // For all-day events, use 'date' field only (YYYY-MM-DD format)
+    // and end date should be the next day
+    const googleEvent: CalendarEvent = {
       summary: event.title,
-      description: event.description,
       start: {
         date: dateString
       },
       end: {
-        date: dateString
-      },
-      reminders: event.reminder
-        ? {
-            useDefault: false,
-            overrides: [
-              {
-                method: 'notification',
-                minutes: event.reminder.minutesBefore
-              }
-            ]
-          }
-        : undefined,
-      recurrence: event.recurring
-        ? [`RRULE:FREQ=${event.recurring.pattern === 'yearly' ? 'YEARLY' : 'MONTHLY'}`]
-        : undefined
+        date: endDateString
+      }
     };
+
+    // MINIMAL TEST MODE - only send summary and dates
+    const minimalTestMode = false;
+
+    if (!minimalTestMode) {
+      // Only add description if it exists
+      if (fullDescription && fullDescription.trim()) {
+        googleEvent.description = fullDescription;
+      }
+
+      // Only add recurrence if it exists
+      if (event.recurring) {
+        const freq = event.recurring.pattern === 'yearly' ? 'YEARLY' : 'MONTHLY';
+        googleEvent.recurrence = [`RRULE:FREQ=${freq}`];
+      }
+
+      // Only add reminders if they exist and are enabled
+      if (event.reminder && event.reminder.enabled === true) {
+        googleEvent.reminders = {
+          useDefault: false,
+          overrides: [
+            {
+              method: 'popup',
+              minutes: event.reminder.minutesBefore || 1440
+            }
+          ]
+        };
+      }
+    }
+
+    console.log('Converted Google event:', googleEvent);
+    return googleEvent;
   }
 
   /**

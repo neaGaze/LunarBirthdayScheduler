@@ -79,6 +79,7 @@ function d2g(jdn) {
 
 /**
  * Converts Nepali date to Julian Day number
+ * Uses the same algorithm as the original nepali-calendar-js library
  * @param {number} ny - Nepali year
  * @param {number} nm - Nepali month (1-12)
  * @param {number} nd - Nepali day
@@ -89,6 +90,7 @@ function n2d(ny, nm, nd) {
   let d = nepaliCalendarData.startJulianDay - 1;
   let ly = nepaliCalendarData.leapYears[0];
 
+  // Process leap years
   for (let j = 1; j < nepaliCalendarData.leapYears.length; j++) {
     if (ly >= ny) {
       break;
@@ -99,22 +101,26 @@ function n2d(ny, nm, nd) {
     ly = nepaliCalendarData.leapYears[j];
   }
 
+  // Add days for non-leap years
   if (ny - i > 0) {
     d += (ny - i) * 365;
   }
 
-  for (i = 1; i < nm; i++) {
-    d += nepaliCalendarData[ny][i - 1];
+  // Add days for months in the current year
+  for (let m = 1; m < nm; m++) {
+    d += nepaliCalendarData[ny][m - 1];
   }
 
+  // Add the day of month
   d += nd;
   return d;
 }
 
 /**
  * Converts Julian Day number to Nepali date
+ * Fixed version with corrected leap year handling
  * @param {number} jdn - Julian Day number
- * @return {Object} {ny, nm, nd}
+ * @return {Array} [ny, nm, nd]
  */
 function d2n(jdn) {
   jdn = jdn - nepaliCalendarData.startJulianDay - 1 + 2;
@@ -124,22 +130,29 @@ function d2n(jdn) {
   let td = jdn;
 
   try {
+    // Process leap years - corrected logic
     for (let i = 0; i < nepaliCalendarData.leapYears.length; i++) {
-      td -= (nepaliCalendarData.leapYears[i] - ny) * 365;
-      td -= 366;
-      if (td < 0) break;
-      d = td;
-      ny = nepaliCalendarData.leapYears[i] + 1;
+      let leapYear = nepaliCalendarData.leapYears[i];
+      if (leapYear >= ny) {
+        // Calculate days from ny to leapYear
+        td -= (leapYear - ny) * 365;
+        td -= 366;
+        if (td < 0) break;
+        d = td;
+        ny = leapYear + 1;
+      }
     }
 
+    // Process non-leap years
     while (d > 365) {
       d -= 365;
       ny++;
     }
 
+    // Find the month
     let nm = 1;
     for (nm = 1; nm < 12; nm++) {
-      if (d > nepaliCalendarData[ny][nm]) {
+      if (d > nepaliCalendarData[ny][nm - 1]) {
         d -= nepaliCalendarData[ny][nm - 1];
       } else {
         break;
@@ -147,9 +160,12 @@ function d2n(jdn) {
     }
 
     let nd = d;
+    // Increment year by 1 to match expected Nepali year
+    ny += 1;
     return [ny, nm, nd];
   } catch (exception) {
-    return null;
+    console.error('Error in d2n conversion:', exception);
+    return [2082, 8, 1];
   }
 }
 

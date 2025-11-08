@@ -82,17 +82,17 @@ const Calendar: React.FC = () => {
             <div className="day-events">
               {dayFestivals.map((festival) => (
                 <div key={festival.id} className="event festival" title={festival.title}>
-                  {festival.title.substring(0, 3)}
+                  {festival.title}
                 </div>
               ))}
               {dayEvents.map((event) => (
                 <div key={event.id} className="event custom" title={event.title}>
-                  {event.title.substring(0, 3)}
+                  {event.title}
                 </div>
               ))}
               {dayBirthdays.map((birthday) => (
                 <div key={birthday.id} className="event birthday" title={birthday.name}>
-                  🎂
+                  🎂 {birthday.name}
                 </div>
               ))}
             </div>

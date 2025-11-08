@@ -191,6 +191,16 @@ const Settings: React.FC = () => {
                   {syncResult.success} events synced
                   {syncResult.failed > 0 && ` · ${syncResult.failed} failed`}
                 </p>
+                {syncResult.errors && syncResult.errors.length > 0 && (
+                  <div className="error-details">
+                    <p className="error-title">Errors:</p>
+                    <ul>
+                      {syncResult.errors.map((error, idx) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -33,7 +33,7 @@ interface AppContextType {
 
   // Sync
   isSyncing: boolean;
-  syncResult: { success: number; failed: number; message?: string } | null;
+  syncResult: { success: number; failed: number; message?: string; errors?: string[] } | null;
   syncEvents: (config: SyncConfig) => Promise<void>;
 
   // UI State
@@ -155,7 +155,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (event: Omit<NepaliCalendarEvent, 'id' | 'gregorianDate'>) => {
       if (nepaliEventService) {
         const newEvent = nepaliEventService.addEvent(event);
-        setEvents([...events, newEvent]);
+        const updated = [...events, newEvent];
+        setEvents(updated);
+        localStorage.setItem('nepali_events', JSON.stringify(updated));
         showNotification('success', `Event "${event.title}" created successfully`);
       }
     },
@@ -167,7 +169,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (nepaliEventService) {
         const updated = nepaliEventService.updateEvent(id, updates);
         if (updated) {
-          setEvents(events.map((e) => (e.id === id ? updated : e)));
+          const newEvents = events.map((e) => (e.id === id ? updated : e));
+          setEvents(newEvents);
+          localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           showNotification('success', 'Event updated successfully');
         }
       }
@@ -179,7 +183,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (id: string) => {
       if (nepaliEventService) {
         nepaliEventService.deleteEvent(id);
-        setEvents(events.filter((e) => e.id !== id));
+        const newEvents = events.filter((e) => e.id !== id);
+        setEvents(newEvents);
+        localStorage.setItem('nepali_events', JSON.stringify(newEvents));
         showNotification('success', 'Event deleted successfully');
       }
     },
@@ -190,7 +196,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (birthday: Omit<LunarBirthday, 'id'>) => {
       if (nepaliEventService) {
         const newBirthday = nepaliEventService.addLunarBirthday(birthday);
-        setBirthdays([...birthdays, newBirthday]);
+        const updated = [...birthdays, newBirthday];
+        setBirthdays(updated);
+        localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
         showNotification('success', `Birthday for "${birthday.name}" added successfully`);
       }
     },
@@ -202,7 +210,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (nepaliEventService) {
         const updated = nepaliEventService.updateLunarBirthday(id, updates);
         if (updated) {
-          setBirthdays(birthdays.map((b) => (b.id === id ? updated : b)));
+          const newBirthdays = birthdays.map((b) => (b.id === id ? updated : b));
+          setBirthdays(newBirthdays);
+          localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           showNotification('success', 'Birthday updated successfully');
         }
       }
@@ -214,7 +224,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (id: string) => {
       if (nepaliEventService) {
         nepaliEventService.deleteLunarBirthday(id);
-        setBirthdays(birthdays.filter((b) => b.id !== id));
+        const newBirthdays = birthdays.filter((b) => b.id !== id);
+        setBirthdays(newBirthdays);
+        localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
         showNotification('success', 'Birthday deleted successfully');
       }
     },
@@ -223,18 +235,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncEvents = useCallback(
     async (config: SyncConfig) => {
-      if (!syncService || !googleCalendarService) {
+      if (!syncService || !googleCalendarService || !nepaliEventService) {
         showNotification('error', 'Not authenticated. Please log in first.');
         return;
       }
 
       setIsSyncing(true);
       try {
+        // Sync current state events and birthdays back to the service
+        // Clear the service's events
+        const currentEvents = nepaliEventService.getEvents();
+        currentEvents.forEach(event => {
+          nepaliEventService.deleteEvent(event.id);
+        });
+
+        // Add all events from state to the service
+        events.forEach(event => {
+          nepaliEventService.addEvent({
+            title: event.title,
+            nepaliDate: event.nepaliDate,
+            description: event.description,
+            isFestival: event.isFestival,
+            isLunarEvent: event.isLunarEvent,
+            reminder: event.reminder,
+            recurring: event.recurring
+          });
+        });
+
+        // Clear the service's birthdays
+        const currentBirthdays = nepaliEventService.getLunarBirthdays();
+        currentBirthdays.forEach(birthday => {
+          nepaliEventService.deleteLunarBirthday(birthday.id);
+        });
+
+        // Add all birthdays from state to the service
+        birthdays.forEach(birthday => {
+          nepaliEventService.addLunarBirthday({
+            name: birthday.name,
+            nepaliDate: birthday.nepaliDate,
+            gregorianBirthDate: birthday.gregorianBirthDate,
+            reminder: birthday.reminder
+          });
+        });
+
         const result = await syncService.syncToGoogleCalendar(config);
         setSyncResult({
           success: result.successCount,
           failed: result.failureCount,
           message: `Synced ${result.successCount} events. ${result.failureCount} failed.`,
+          errors: result.errors
         });
         showNotification(
           result.failureCount === 0 ? 'success' : 'error',
@@ -249,7 +298,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsSyncing(false);
       }
     },
-    [syncService, googleCalendarService, showNotification]
+    [syncService, googleCalendarService, nepaliEventService, events, birthdays, showNotification]
   );
 
   // Check for existing token on mount
@@ -259,13 +308,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('Found existing token in localStorage, marking as authenticated');
       setIsAuthenticated(true);
       setUser({ email: 'User' });
+
+      // Re-initialize services with the token
+      try {
+        const clientId = (window as any).VITE_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+        const clientSecret = (window as any).VITE_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
+        const redirectUri = (window as any).VITE_REDIRECT_URI || process.env.VITE_REDIRECT_URI;
+
+        const service = new GoogleCalendarService({
+          clientId,
+          clientSecret,
+          redirectUri,
+          apiKey: '',
+        });
+
+        service.setAccessToken(existingToken);
+        setGoogleCalendarService(service);
+
+        if (nepaliEventService) {
+          setSyncService(new SyncService(service, nepaliEventService));
+        }
+      } catch (error) {
+        console.error('Error initializing services with cached token:', error);
+      }
     }
-  }, []);
+  }, [nepaliEventService]);
 
   // Load festivals on mount
   React.useEffect(() => {
     setFestivals(nepaliEventService.getFestivals());
   }, [nepaliEventService]);
+
+  // Load events and birthdays from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const savedEvents = localStorage.getItem('nepali_events');
+      if (savedEvents) {
+        setEvents(JSON.parse(savedEvents));
+      }
+
+      const savedBirthdays = localStorage.getItem('nepali_birthdays');
+      if (savedBirthdays) {
+        setBirthdays(JSON.parse(savedBirthdays));
+      }
+    } catch (error) {
+      console.error('Error loading data from localStorage:', error);
+    }
+  }, []);
 
   const value: AppContextType = {
     isAuthenticated,

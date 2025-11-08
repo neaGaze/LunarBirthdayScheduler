@@ -156,14 +156,15 @@
 }
 
 .event {
-  font-size: 0.7em;
+  font-size: 0.65em;
   padding: 2px 4px;
   border-radius: 3px;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   overflow: hidden;
-  text-overflow: ellipsis;
   color: white;
   font-weight: 500;
+  line-height: 1.1;
 
   &.festival {
     background: linear-gradient(135deg, #ff6b6b, #ff8787);

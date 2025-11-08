@@ -2,6 +2,7 @@ import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
+import FestivalList from './components/FestivalList';
 import EventForm from './components/EventForm';
 import BirthdayTracker from './components/BirthdayTracker';
 import Settings from './components/Settings';
@@ -74,6 +75,8 @@ const AppContent: React.FC = () => {
             <div className="dashboard">
               <h2>📆 Calendar View</h2>
               <Calendar />
+
+              <FestivalList />
 
               <div className="dashboard-grid">
                 <section className="dashboard-card">
