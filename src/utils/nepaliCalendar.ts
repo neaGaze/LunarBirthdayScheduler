@@ -60,38 +60,22 @@ export interface TithiInfo {
   phase: 'waxing' | 'waning';
 }
 
-// Cache for the NepaliCalendar module
-let nepaliCalendarModule: any = null;
-
-async function loadNepaliCalendar() {
-  if (nepaliCalendarModule) {
-    return nepaliCalendarModule;
-  }
-
-  try {
-    // Use dynamic import with the full path to work with CommonJS module
-    nepaliCalendarModule = await import('nepali-calendar-js');
-    return nepaliCalendarModule;
-  } catch (error) {
-    console.warn('Failed to load nepali-calendar-js via import:', error);
-    return null;
-  }
-}
-
-// Import the fixed nepali calendar library with proper variable scoping
-import { toNepali, toGregorian } from '../lib/nepaliCalendarFixed';
+// Import the fixed wrapper instead of the original library
+// The wrapper re-implements the conversion functions with proper variable scoping
+import nepaliCalendarLib from '../lib/nepaliCalendarFixed';
 
 /**
  * Convert Gregorian date to Nepali date
- * Uses the fixed nepali-calendar-js wrapper with proper variable scoping
+ * Uses the fixed wrapper with proper variable scoping
  */
 export function gregorianToNepali(date: GregorianDate): NepaliDate {
   try {
-    const result = toNepali(date.year, date.month, date.day);
+    const result = nepaliCalendarLib.toNepali(date.year, date.month, date.day);
+    // toNepali returns an array [year, month, day]
     return {
-      year: result[0],
-      month: result[1],
-      day: result[2],
+      year: Array.isArray(result) ? result[0] : result.ny,
+      month: Array.isArray(result) ? result[1] : result.nm,
+      day: Array.isArray(result) ? result[2] : result.nd,
     };
   } catch (error) {
     console.error('Error converting to Nepali date:', error, date);
@@ -101,15 +85,16 @@ export function gregorianToNepali(date: GregorianDate): NepaliDate {
 
 /**
  * Convert Nepali date to Gregorian date
- * Uses the fixed nepali-calendar-js wrapper with proper variable scoping
+ * Uses the fixed wrapper with proper variable scoping
  */
 export function nepaliToGregorian(date: NepaliDate): GregorianDate {
   try {
-    const result = toGregorian(date.year, date.month, date.day);
+    const result = nepaliCalendarLib.toGregorian(date.year, date.month, date.day);
+    // toGregorian returns an array [year, month, day]
     return {
-      year: result[0],
-      month: result[1],
-      day: result[2],
+      year: Array.isArray(result) ? result[0] : result.gy,
+      month: Array.isArray(result) ? result[1] : result.gm,
+      day: Array.isArray(result) ? result[2] : result.gd,
     };
   } catch (error) {
     console.error('Error converting to Gregorian date:', error, date);
@@ -119,17 +104,44 @@ export function nepaliToGregorian(date: NepaliDate): GregorianDate {
 
 /**
  * Calculate tithi (lunar day) for a given date
- * Tithi is a lunar day, and multiple tithis can occur on a single calendar day
- * This is a simplified calculation
+ * Uses astronomical calculations based on lunar age
+ * Lunar synodic month: 29.530588 days
+ *
+ * Algorithm:
+ * - Finds the most recent new moon before or on the given date
+ * - Calculates days elapsed since that new moon
+ * - Converts to tithi number (1-30) using lunar month cycle
+ * - Reference: May 9, 2025 is a documented new moon
  */
 export function calculateTithi(date: GregorianDate): TithiInfo {
-  // Simplified tithi calculation based on lunar phase
-  // In reality, this requires astronomical calculations
+  const lunarMonth = 29.530588;
+  const titthiDuration = lunarMonth / 30;
 
-  const dateObj = new Date(date.year, date.month - 1, date.day);
-  const lunarPhase = (dateObj.getTime() / (24 * 60 * 60 * 1000)) % 29.53; // Lunar month cycle
+  // Known new moon reference: May 9, 2025
+  const knownNewMoon = new Date(2025, 4, 9);
+  const currentDate = new Date(date.year, date.month - 1, date.day);
 
-  const tithiNumber = Math.floor((lunarPhase / 29.53) * 30) + 1;
+  // Calculate days since the known new moon
+  const daysSinceKnownNewMoon = (currentDate.getTime() - knownNewMoon.getTime()) / (24 * 60 * 60 * 1000);
+
+  // Calculate position in current lunar month (0 to 29.53)
+  // Using modulo to handle both past and future dates
+  let positionInMonth = daysSinceKnownNewMoon % lunarMonth;
+  if (positionInMonth < 0) {
+    positionInMonth += lunarMonth;
+  }
+
+  // Convert position to tithi number (1-30)
+  let tithiNumber = Math.floor(positionInMonth / titthiDuration) + 1;
+
+  // Ensure tithi is in valid range (1-30)
+  if (tithiNumber > 30) {
+    tithiNumber = 30;
+  }
+  if (tithiNumber < 1) {
+    tithiNumber = 1;
+  }
+
   const phase = tithiNumber <= 15 ? 'waxing' : 'waning';
 
   return {

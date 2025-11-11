@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { nepaliToGregorian, gregorianToNepali } from '../utils/nepaliCalendar.js';
+import { nepaliToGregorian, gregorianToNepali, calculateTithi, TITHI_NAMES } from '../utils/nepaliCalendar.js';
 import './BirthdayTracker.css';
 
 const BirthdayTracker: React.FC = () => {
   const { addBirthday, birthdays } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [dateInputMode, setDateInputMode] = useState<'nepali' | 'gregorian'>('gregorian');
+  const [saveBirthdayMode, setSaveBirthdayMode] = useState<'date' | 'tithi'>('date');
   const [formData, setFormData] = useState({
     name: '',
     nepaliYear: 2050,
@@ -16,6 +17,7 @@ const BirthdayTracker: React.FC = () => {
     gregorianMonth: 1,
     gregorianDay: 1,
     reminderEnabled: true,
+    tithiNumber: 0, // Will be calculated
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -42,6 +44,10 @@ const BirthdayTracker: React.FC = () => {
         newData.nepaliYear = nepaliDate.year;
         newData.nepaliMonth = nepaliDate.month;
         newData.nepaliDay = nepaliDate.day;
+
+        // Calculate tithi for the Gregorian date
+        const tithi = calculateTithi(gregDate);
+        newData.tithiNumber = tithi.number;
       }
     } else {
       // If user is entering Nepali date, convert to Gregorian
@@ -57,6 +63,10 @@ const BirthdayTracker: React.FC = () => {
         newData.gregorianYear = gregDate.year;
         newData.gregorianMonth = gregDate.month;
         newData.gregorianDay = gregDate.day;
+
+        // Calculate tithi for the Gregorian date
+        const tithi = calculateTithi(gregDate);
+        newData.tithiNumber = tithi.number;
       }
     }
 
@@ -88,6 +98,9 @@ const BirthdayTracker: React.FC = () => {
           enabled: formData.reminderEnabled,
           minutesBefore: 1440,
         },
+        // Add tithi-based birthday support
+        isTithiBased: saveBirthdayMode === 'tithi',
+        tithiNumber: formData.tithiNumber,
       });
 
       setFormData({
@@ -99,8 +112,10 @@ const BirthdayTracker: React.FC = () => {
         gregorianMonth: 1,
         gregorianDay: 1,
         reminderEnabled: true,
+        tithiNumber: 0,
       });
       setShowForm(false);
+      setSaveBirthdayMode('date');
     } catch (error) {
       console.error('Error adding birthday:', error);
       alert('Failed to add birthday');
@@ -115,6 +130,53 @@ const BirthdayTracker: React.FC = () => {
     const today = new Date();
     const birthDate = new Date(new Date().getFullYear(), gregorianDate.month - 1, gregorianDate.day);
     return birthDate >= today;
+  };
+
+  /**
+   * Find the next occurrence of a specific tithi starting from a given date
+   */
+  const findNextTithiDate = (startDate: Date, targetTithiNumber: number): Date => {
+    let currentDate = new Date(startDate);
+
+    // Search for up to 60 days to find the tithi
+    for (let i = 0; i < 60; i++) {
+      const checkDate = {
+        year: currentDate.getFullYear(),
+        month: currentDate.getMonth() + 1,
+        day: currentDate.getDate()
+      };
+
+      const tithi = calculateTithi(checkDate);
+      if (tithi.number === targetTithiNumber) {
+        return new Date(currentDate);
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Fallback to start date
+    return startDate;
+  };
+
+  /**
+   * Get next 3 years of Gregorian dates for a specific tithi
+   */
+  const getNextThreeYearsTithiDates = (tithiNumber: number): Date[] => {
+    const today = new Date();
+    const dates: Date[] = [];
+
+    // Find dates for the next 3 years
+    for (let year = 0; year < 3; year++) {
+      const searchStartDate = new Date(today.getFullYear() + year, today.getMonth(), today.getDate());
+      const nextTithiDate = findNextTithiDate(searchStartDate, tithiNumber);
+
+      // Only add if it's in the target year or early next year
+      if (nextTithiDate.getFullYear() <= today.getFullYear() + year + 1) {
+        dates.push(nextTithiDate);
+      }
+    }
+
+    return dates;
   };
 
   return (
@@ -135,6 +197,9 @@ const BirthdayTracker: React.FC = () => {
                   <h4>{birthday.name}</h4>
                   <p className="birthday-date">
                     Nepali: {birthday.nepaliDate.day}/{birthday.nepaliDate.month}/{birthday.nepaliDate.year}
+                    {birthday.isTithiBased && birthday.tithiNumber && (
+                      <span className="tithi-badge"> 🌙 {TITHI_NAMES[birthday.tithiNumber - 1]}</span>
+                    )}
                   </p>
                   <p className="birthday-gregorian">
                     Born: {birthday.gregorianBirthDate.day}/{birthday.gregorianBirthDate.month}/
@@ -142,6 +207,7 @@ const BirthdayTracker: React.FC = () => {
                   </p>
                 </div>
                 {birthday.reminder?.enabled && <div className="reminder-badge">🔔 Reminder on</div>}
+                {birthday.isTithiBased && <div className="tithi-badge">🌙 Tithi-based</div>}
               </li>
             ))}
           </ul>
@@ -238,6 +304,11 @@ const BirthdayTracker: React.FC = () => {
                   <p className="converted-value">
                     {formData.nepaliDay}/{formData.nepaliMonth}/{formData.nepaliYear}
                   </p>
+                  {formData.tithiNumber > 0 && (
+                    <p className="tithi-info">
+                      🌙 Tithi: <strong>{TITHI_NAMES[formData.tithiNumber - 1]}</strong> (Lunar Day {formData.tithiNumber})
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -289,9 +360,61 @@ const BirthdayTracker: React.FC = () => {
                   <p className="converted-value">
                     {formData.gregorianDay}/{formData.gregorianMonth}/{formData.gregorianYear}
                   </p>
+                  {formData.tithiNumber > 0 && (
+                    <p className="tithi-info">
+                      🌙 Tithi: <strong>{TITHI_NAMES[formData.tithiNumber - 1]}</strong> (Lunar Day {formData.tithiNumber})
+                    </p>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* Show 3-year preview for tithi-based birthdays */}
+            {saveBirthdayMode === 'tithi' && formData.tithiNumber > 0 && (
+              <div className="tithi-preview">
+                <h4>📅 Next 3 Years for This Tithi</h4>
+                <p className="preview-hint">
+                  Your birthday will occur on these dates when you celebrate by {TITHI_NAMES[formData.tithiNumber - 1]}:
+                </p>
+                <div className="preview-dates">
+                  {getNextThreeYearsTithiDates(formData.tithiNumber).map((date, index) => (
+                    <div key={index} className="preview-date-item">
+                      <span className="preview-date">
+                        {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()}
+                      </span>
+                      <span className="preview-day-name">
+                        {date.toLocaleDateString('en-US', { weekday: 'long' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="save-mode-selector">
+              <label>Birthday Celebration Type:</label>
+              <div className="mode-buttons">
+                <button
+                  type="button"
+                  className={`mode-button ${saveBirthdayMode === 'date' ? 'active' : ''}`}
+                  onClick={() => setSaveBirthdayMode('date')}
+                >
+                  📅 By Calendar Date
+                </button>
+                <button
+                  type="button"
+                  className={`mode-button ${saveBirthdayMode === 'tithi' ? 'active' : ''}`}
+                  onClick={() => setSaveBirthdayMode('tithi')}
+                >
+                  🌙 By Lunar Day (Tithi)
+                </button>
+              </div>
+              <p className="form-hint">
+                {saveBirthdayMode === 'date'
+                  ? 'Birthday will be celebrated on the same calendar date every year'
+                  : `Birthday will be celebrated on ${formData.tithiNumber > 0 ? TITHI_NAMES[formData.tithiNumber - 1] : 'the lunar day'} every lunar month`}
+              </p>
+            </div>
 
             <div className="form-group checkbox">
               <label htmlFor="reminderEnabled">

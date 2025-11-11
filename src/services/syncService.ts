@@ -6,6 +6,7 @@
 import { GoogleCalendarService } from './googleCalendarService.js';
 import { NepaliEventService, type NepaliCalendarEvent } from './nepaliEventService.js';
 import type { GregorianDate } from '../utils/nepaliCalendar.js';
+import { calculateTithi } from '../utils/nepaliCalendar.js';
 
 export interface SyncConfig {
   calendarId: string;
@@ -33,6 +34,35 @@ export class SyncService {
   ) {
     this.googleCalendarService = googleCalendarService;
     this.nepaliEventService = nepaliEventService;
+  }
+
+  /**
+   * Find the next date with a specific tithi (lunar day)
+   * @param startDate Starting date to search from
+   * @param targetTithiNumber The tithi number to find (1-30)
+   * @returns The next date that has the target tithi
+   */
+  private findNextTithiDate(startDate: GregorianDate, targetTithiNumber: number): GregorianDate {
+    let currentDate = new Date(startDate.year, startDate.month - 1, startDate.day);
+
+    // Search for up to 60 days to find the tithi
+    for (let i = 0; i < 60; i++) {
+      const checkDate: GregorianDate = {
+        year: currentDate.getFullYear(),
+        month: currentDate.getMonth() + 1,
+        day: currentDate.getDate()
+      };
+
+      const tithi = calculateTithi(checkDate);
+      if (tithi.number === targetTithiNumber) {
+        return checkDate;
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Fallback to the start date if tithi not found
+    return startDate;
   }
 
   /**
@@ -80,20 +110,40 @@ export class SyncService {
 
       if (config.syncBirthdays) {
         const now = new Date();
-        const birthdays = this.nepaliEventService.getUpcomingLunarBirthdays(now.getFullYear());
+        const currentYear = now.getFullYear();
+        const birthdays = this.nepaliEventService.getUpcomingLunarBirthdays(currentYear);
 
         // Convert birthdays to events
         birthdays.forEach(birthday => {
+          let gregorianDate: GregorianDate;
+
+          if (birthday.isTithiBased && birthday.tithiNumber) {
+            // For tithi-based birthdays, find the next occurrence of this tithi
+            const today: GregorianDate = {
+              year: now.getFullYear(),
+              month: now.getMonth() + 1,
+              day: now.getDate()
+            };
+            gregorianDate = this.findNextTithiDate(today, birthday.tithiNumber);
+          } else {
+            // For date-based birthdays, use the same month/day in current year
+            gregorianDate = {
+              year: currentYear,
+              month: birthday.gregorianBirthDate.month,
+              day: birthday.gregorianBirthDate.day
+            };
+          }
+
+          const descriptionSuffix = birthday.isTithiBased && birthday.tithiNumber
+            ? ` (Tithi-based: repeats on lunar day)`
+            : ``;
+
           events.push({
             id: birthday.id,
             title: `${birthday.name}'s Birthday`,
             nepaliDate: birthday.nepaliDate,
-            gregorianDate: {
-              year: new Date().getFullYear(),
-              month: birthday.gregorianBirthDate.month,
-              day: birthday.gregorianBirthDate.day
-            },
-            description: `Birthday (Nepali date: ${birthday.nepaliDate.day}/${birthday.nepaliDate.month}/${birthday.nepaliDate.year})`,
+            gregorianDate,
+            description: `Birthday (Nepali date: ${birthday.nepaliDate.day}/${birthday.nepaliDate.month}/${birthday.nepaliDate.year})${descriptionSuffix}`,
             isFestival: false,
             isLunarEvent: true,
             reminder: birthday.reminder,

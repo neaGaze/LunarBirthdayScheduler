@@ -81,13 +81,23 @@
   }
 }
 
-.reminder-badge {
+.reminder-badge,
+.tithi-badge {
   font-size: 0.85em;
-  background: #fff3e0;
-  color: var(--warning);
   padding: 6px 12px;
   border-radius: 20px;
   white-space: nowrap;
+}
+
+.reminder-badge {
+  background: #fff3e0;
+  color: var(--warning);
+}
+
+.tithi-badge {
+  background: #e3f2fd;
+  color: #2196f3;
+  display: inline-block;
 }
 
 /* Form Styles */
@@ -169,12 +179,13 @@ form {
   }
 }
 
-.date-mode-selector {
+.date-mode-selector,
+.save-mode-selector {
   background: white;
   padding: 15px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 
   label {
     display: block;
@@ -223,8 +234,10 @@ form {
 .form-hint {
   font-size: 0.9em;
   color: #999;
-  margin: -10px 0 15px 0;
+  margin: 8px 0 0 0;
+  padding: 8px 0;
   font-style: italic;
+  line-height: 1.4;
 }
 
 .auto-converted {
@@ -244,9 +257,24 @@ form {
   .converted-value {
     font-size: 1.1em;
     color: var(--secondary);
-    margin: 0;
+    margin: 0 0 8px 0;
     font-weight: 600;
     font-family: monospace;
+  }
+
+  .tithi-info {
+    font-size: 0.9em;
+    color: #2196f3;
+    margin: 0;
+    padding: 8px;
+    background: #e3f2fd;
+    border-radius: 4px;
+    font-weight: 500;
+
+    strong {
+      color: #1565c0;
+      font-weight: 600;
+    }
   }
 }
 
@@ -312,6 +340,57 @@ form {
   }
 }
 
+.tithi-preview {
+  background: #e3f2fd;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #2196f3;
+  margin: 20px 0;
+
+  h4 {
+    margin: 0 0 10px 0;
+    color: #1565c0;
+    font-size: 1.1em;
+  }
+}
+
+.preview-hint {
+  font-size: 0.9em;
+  color: #1565c0;
+  margin: 0 0 12px 0;
+  font-style: italic;
+}
+
+.preview-dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.preview-date-item {
+  background: white;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #90caf9;
+  text-align: center;
+
+  .preview-date {
+    display: block;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #2196f3;
+    margin-bottom: 6px;
+    font-family: monospace;
+  }
+
+  .preview-day-name {
+    display: block;
+    font-size: 0.85em;
+    color: #666;
+    font-weight: 500;
+  }
+}
+
 @media (max-width: 768px) {
   .birthday-container {
     padding: 15px;
@@ -337,5 +416,9 @@ form {
 
   .btn {
     width: 100%;
+  }
+
+  .preview-dates {
+    grid-template-columns: 1fr;
   }
 }

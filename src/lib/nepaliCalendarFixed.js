@@ -118,7 +118,7 @@ function n2d(ny, nm, nd) {
 
 /**
  * Converts Julian Day number to Nepali date
- * Fixed version with corrected leap year handling
+ * Uses the same algorithm as the original nepali-calendar-js library
  * @param {number} jdn - Julian Day number
  * @return {Array} [ny, nm, nd]
  */
@@ -130,17 +130,13 @@ function d2n(jdn) {
   let td = jdn;
 
   try {
-    // Process leap years - corrected logic
+    // Process leap years
     for (let i = 0; i < nepaliCalendarData.leapYears.length; i++) {
-      let leapYear = nepaliCalendarData.leapYears[i];
-      if (leapYear >= ny) {
-        // Calculate days from ny to leapYear
-        td -= (leapYear - ny) * 365;
-        td -= 366;
-        if (td < 0) break;
-        d = td;
-        ny = leapYear + 1;
-      }
+      td -= (nepaliCalendarData.leapYears[i] - ny) * 365;
+      td -= 366;
+      if (td < 0) break;
+      d = td;
+      ny = nepaliCalendarData.leapYears[i] + 1;
     }
 
     // Process non-leap years
@@ -152,7 +148,7 @@ function d2n(jdn) {
     // Find the month
     let nm = 1;
     for (nm = 1; nm < 12; nm++) {
-      if (d > nepaliCalendarData[ny][nm - 1]) {
+      if (d > nepaliCalendarData[ny][nm]) {
         d -= nepaliCalendarData[ny][nm - 1];
       } else {
         break;
@@ -160,8 +156,6 @@ function d2n(jdn) {
     }
 
     let nd = d;
-    // Increment year by 1 to match expected Nepali year
-    ny += 1;
     return [ny, nm, nd];
   } catch (exception) {
     console.error('Error in d2n conversion:', exception);

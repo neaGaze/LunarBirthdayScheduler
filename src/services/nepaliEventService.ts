@@ -40,6 +40,9 @@ export interface LunarBirthday {
     enabled: boolean;
     minutesBefore: number;
   };
+  // Tithi-based birthday support
+  isTithiBased?: boolean;
+  tithiNumber?: number; // 1-30, the lunar day to celebrate on
 }
 
 export class NepaliEventService {
