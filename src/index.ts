@@ -13,4 +13,4 @@ export * from './utils/nepaliCalendar.js';
 export type { CalendarEvent } from './services/googleCalendarService.js';
 export type { NepaliCalendarEvent, LunarBirthday } from './services/nepaliEventService.js';
 export type { SyncConfig, SyncResult } from './services/syncService.js';
-export type { NepaliDate, GregorianDate, TithiInfo } from './utils/nepaliCalendar.js';
+export type { NepaliDateInfo, GregorianDate, TithiInfo } from './utils/nepaliCalendar.js';

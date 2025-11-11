@@ -36,7 +36,7 @@ STEP 3: Run the Application
 Choose ONE of these methods:
 
 METHOD A: Using Python (if Python is installed)
-  python -m http.server 3000
+  python3 -m http.server 3000
   Open browser: http://localhost:3000
 
 METHOD B: Using http-server

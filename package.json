@@ -9,13 +9,18 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "example": "npm run build-backend && node dist/example.js",
-    "build-backend": "tsc"
+    "build-backend": "tsc",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "astronomy-engine": "^2.1.19",
     "nepali-calendar-js": "^1.0.0",
+    "nepali-date-converter": "^3.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -25,6 +30,7 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^5.1.0",
     "typescript": "^5.3.3",
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "vitest": "^3.2.4"
   }
 }

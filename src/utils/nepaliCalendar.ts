@@ -42,7 +42,7 @@ export const NEPALI_FESTIVALS = [
   { name: 'Eid', month: 'Varies', day: 1, isLunar: true }, // Islamic calendar
 ];
 
-export interface NepaliDate {
+export interface NepaliDateInfo {
   year: number;
   month: number;
   day: number;
@@ -60,22 +60,27 @@ export interface TithiInfo {
   phase: 'waxing' | 'waning';
 }
 
-// Import the fixed wrapper instead of the original library
-// The wrapper re-implements the conversion functions with proper variable scoping
-import nepaliCalendarLib from '../lib/nepaliCalendarFixed';
+// Import the nepali-date-converter library (maintained and accurate)
+// The default export is the NepaliDate constructor
+import NepaliDate from 'nepali-date-converter';
+// Import astronomy-engine for tithi calculations
+import * as Astronomy from 'astronomy-engine';
 
 /**
  * Convert Gregorian date to Nepali date
- * Uses the fixed wrapper with proper variable scoping
  */
-export function gregorianToNepali(date: GregorianDate): NepaliDate {
+export function gregorianToNepali(date: GregorianDate): NepaliDateInfo {
   try {
-    const result = nepaliCalendarLib.toNepali(date.year, date.month, date.day);
-    // toNepali returns an array [year, month, day]
+    // Create a NepaliDate object from Gregorian date using JavaScript Date
+    // Month in JS Date is 0-indexed, so we subtract 1
+    const jsDate = new Date(date.year, date.month - 1, date.day);
+    const nepaliDateObj = new NepaliDate(jsDate);
+    const bs = nepaliDateObj.getBS();
+
     return {
-      year: Array.isArray(result) ? result[0] : result.ny,
-      month: Array.isArray(result) ? result[1] : result.nm,
-      day: Array.isArray(result) ? result[2] : result.nd,
+      year: bs.year,
+      month: bs.month + 1, // nepali-date-converter uses 0-indexed months, convert to 1-indexed
+      day: bs.date,
     };
   } catch (error) {
     console.error('Error converting to Nepali date:', error, date);
@@ -85,16 +90,19 @@ export function gregorianToNepali(date: GregorianDate): NepaliDate {
 
 /**
  * Convert Nepali date to Gregorian date
- * Uses the fixed wrapper with proper variable scoping
  */
-export function nepaliToGregorian(date: NepaliDate): GregorianDate {
+export function nepaliToGregorian(date: NepaliDateInfo): GregorianDate {
   try {
-    const result = nepaliCalendarLib.toGregorian(date.year, date.month, date.day);
-    // toGregorian returns an array [year, month, day]
+    // Create a NepaliDate object from Nepali date string using parse
+    // nepali-date-converter expects 1-indexed months in the date string
+    const dateString = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+    const nepaliDateObj = NepaliDate.parse(dateString);
+    const ad = nepaliDateObj.getAD();
+
     return {
-      year: Array.isArray(result) ? result[0] : result.gy,
-      month: Array.isArray(result) ? result[1] : result.gm,
-      day: Array.isArray(result) ? result[2] : result.gd,
+      year: ad.year,
+      month: ad.month + 1, // nepali-date-converter returns 0-indexed months, convert to 1-indexed
+      day: ad.date,
     };
   } catch (error) {
     console.error('Error converting to Gregorian date:', error, date);
@@ -104,51 +112,56 @@ export function nepaliToGregorian(date: NepaliDate): GregorianDate {
 
 /**
  * Calculate tithi (lunar day) for a given date
- * Uses astronomical calculations based on lunar age
- * Lunar synodic month: 29.530588 days
+ * Uses precise astronomical calculations from astronomy-engine
  *
  * Algorithm:
- * - Finds the most recent new moon before or on the given date
- * - Calculates days elapsed since that new moon
- * - Converts to tithi number (1-30) using lunar month cycle
- * - Reference: May 9, 2025 is a documented new moon
+ * - Uses MoonPhase to get lunar elongation (Moon longitude - Sun longitude)
+ * - Each tithi represents 12 degrees of lunar elongation
+ * - Tithi 1-15 = waxing phase (Sukla Paksha)
+ * - Tithi 16-30 = waning phase (Krishna Paksha)
+ *
+ * Accuracy: ±1 arcminute (ceremony-grade)
+ * Supports: Any historical or future date
  */
 export function calculateTithi(date: GregorianDate): TithiInfo {
-  const lunarMonth = 29.530588;
-  const titthiDuration = lunarMonth / 30;
+  try {
+    // MoonPhase returns the ecliptic longitude difference between Sun and Moon
+    // Range: [0, 360) degrees
+    // 0 = new moon, 90 = first quarter, 180 = full moon, 270 = third quarter
+    const elongation = Astronomy.MoonPhase(new Date(date.year, date.month - 1, date.day));
 
-  // Known new moon reference: May 9, 2025
-  const knownNewMoon = new Date(2025, 4, 9);
-  const currentDate = new Date(date.year, date.month - 1, date.day);
+    // Each tithi spans 12 degrees (360° / 30 tithis)
+    // Tithi number is 1-based
+    let tithiNumber = Math.floor(elongation / 12) + 1;
 
-  // Calculate days since the known new moon
-  const daysSinceKnownNewMoon = (currentDate.getTime() - knownNewMoon.getTime()) / (24 * 60 * 60 * 1000);
+    // Ensure tithi is in valid range (1-30)
+    // Tithi 30 is Amavasya (New Moon, at the boundary)
+    if (tithiNumber > 30) {
+      tithiNumber = 30;
+    }
+    if (tithiNumber < 1) {
+      tithiNumber = 1;
+    }
 
-  // Calculate position in current lunar month (0 to 29.53)
-  // Using modulo to handle both past and future dates
-  let positionInMonth = daysSinceKnownNewMoon % lunarMonth;
-  if (positionInMonth < 0) {
-    positionInMonth += lunarMonth;
+    // Determine phase
+    // Tithi 1-15: Waxing phase (Sukla Paksha) - from New Moon to Full Moon
+    // Tithi 16-30: Waning phase (Krishna Paksha) - from Full Moon to New Moon
+    const phase = tithiNumber <= 15 ? 'waxing' : 'waning';
+
+    return {
+      name: TITHI_NAMES[tithiNumber - 1] || 'Unknown',
+      number: tithiNumber,
+      phase: phase
+    };
+  } catch (error) {
+    console.error('Error calculating tithi:', error, date);
+    // Fallback to a default value if astronomy-engine is not available
+    return {
+      name: 'Unknown',
+      number: 1,
+      phase: 'waxing'
+    };
   }
-
-  // Convert position to tithi number (1-30)
-  let tithiNumber = Math.floor(positionInMonth / titthiDuration) + 1;
-
-  // Ensure tithi is in valid range (1-30)
-  if (tithiNumber > 30) {
-    tithiNumber = 30;
-  }
-  if (tithiNumber < 1) {
-    tithiNumber = 1;
-  }
-
-  const phase = tithiNumber <= 15 ? 'waxing' : 'waning';
-
-  return {
-    name: TITHI_NAMES[tithiNumber - 1] || 'Unknown',
-    number: tithiNumber,
-    phase: phase
-  };
 }
 
 /**

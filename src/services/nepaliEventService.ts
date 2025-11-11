@@ -9,14 +9,14 @@ import {
   NEPALI_FESTIVALS,
   NEPALI_MONTH_NAMES,
   type GregorianDate,
-  type NepaliDate
+  type NepaliDateInfo
 } from '../utils/nepaliCalendar.js';
 import type { CalendarEvent } from './googleCalendarService.js';
 
 export interface NepaliCalendarEvent {
   id: string;
   title: string;
-  nepaliDate: NepaliDate;
+  nepaliDate: NepaliDateInfo;
   gregorianDate: GregorianDate;
   description?: string;
   isFestival: boolean;
@@ -27,14 +27,14 @@ export interface NepaliCalendarEvent {
   };
   recurring?: {
     pattern: 'yearly' | 'monthly';
-    endDate?: NepaliDate;
+    endDate?: NepaliDateInfo;
   };
 }
 
 export interface LunarBirthday {
   id: string;
   name: string;
-  nepaliDate: NepaliDate;
+  nepaliDate: NepaliDateInfo;
   gregorianBirthDate: GregorianDate;
   reminder?: {
     enabled: boolean;
@@ -79,7 +79,7 @@ export class NepaliEventService {
       const monthNumber = monthNameToNumber[festival.month] || (index + 1);
 
       // Assuming month numbers map to festivals
-      const nepaliDate: NepaliDate = {
+      const nepaliDate: NepaliDateInfo = {
         year: 2080,
         month: monthNumber,
         day: festival.day || 1
