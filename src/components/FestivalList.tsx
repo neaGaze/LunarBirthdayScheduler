@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { gregorianToNepali, getNepaliMonthName } from '../utils/nepaliCalendar';
+import { gregorianToNepali, getNepaliMonthName, getFestivalDateRange, getFestivalDayName, NEPALI_FESTIVALS } from '../utils/nepaliCalendar';
 import './FestivalList.css';
 
 const FestivalList: React.FC = () => {
@@ -52,14 +52,37 @@ const FestivalList: React.FC = () => {
         <div className="festival-section">
           <h4 className="section-title festival-title">🎉 Festivals</h4>
           <ul className="festival-items">
-            {monthFestivals.map((festival) => (
-              <li key={festival.id} className="festival-item">
-                <span className="festival-date">
-                  {festival.gregorianDate.day} ({getNepaliMonthName(gregorianToNepali(festival.gregorianDate).month)} {gregorianToNepali(festival.gregorianDate).day})
-                </span>
-                <span className="festival-name">{festival.title}</span>
-              </li>
-            ))}
+            {monthFestivals.map((festival) => {
+              // Get Nepali date range for display
+              const nepaliStartDate = gregorianToNepali(festival.gregorianDate);
+              const festivalDef = NEPALI_FESTIVALS.find(f => f.name === festival.title);
+              let dateRange = '';
+              let displayName = festival.title;
+
+              if (festival.festivalDuration?.isMultiDay && festivalDef) {
+                const range = getFestivalDateRange(festivalDef, nepaliStartDate.year);
+                if (range) {
+                  const nepaliStart = gregorianToNepali(range.start);
+                  const nepaliEnd = gregorianToNepali(range.end);
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                  const monthShort = monthNames[range.start.month - 1];
+                  dateRange = `${nepaliStart.day}-${nepaliEnd.day} ${getNepaliMonthName(nepaliStart.month)} (${range.start.day} - ${range.end.day} ${monthShort})`;
+
+                  // For multi-day festivals, show "Festival: Day Name"
+                  const dayName = getFestivalDayName(festival.title, nepaliStartDate.day, nepaliStartDate.month);
+                  displayName = dayName !== festival.title ? dayName : festival.title;
+                }
+              } else {
+                dateRange = `${festival.gregorianDate.day} (${getNepaliMonthName(nepaliStartDate.month)} ${nepaliStartDate.day})`;
+              }
+
+              return (
+                <li key={festival.id} className="festival-item">
+                  <span className="festival-date">{dateRange}</span>
+                  <span className="festival-name">{displayName}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

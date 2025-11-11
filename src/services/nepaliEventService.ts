@@ -8,6 +8,8 @@ import {
   nepaliToGregorian,
   NEPALI_FESTIVALS,
   NEPALI_MONTH_NAMES,
+  NEPALI_MONTH_MAP,
+  nepaliDateRangeToGregorian,
   type GregorianDate,
   type NepaliDateInfo
 } from '../utils/nepaliCalendar.js';
@@ -28,6 +30,11 @@ export interface NepaliCalendarEvent {
   recurring?: {
     pattern: 'yearly' | 'monthly';
     endDate?: NepaliDateInfo;
+  };
+  festivalDuration?: {
+    isMultiDay: boolean;
+    startDay?: number;
+    endDay?: number;
   };
 }
 
@@ -56,39 +63,33 @@ export class NepaliEventService {
 
   /**
    * Initialize major festivals
+   * Handles both single-day and multi-day festivals
    */
   private initializeFestivals(): void {
-    const monthNameToNumber: { [key: string]: number } = {
-      'Baisakh': 1,
-      'Jestha': 2,
-      'Asar': 3,
-      'Shrawan': 4,
-      'Bhadra': 5,
-      'Ashwin': 6,
-      'Kartik': 7,
-      'Mangsir': 8,
-      'Poush': 9,
-      'Magh': 10,
-      'Falgun': 11,
-      'Chaitra': 12,
-      'Ashoj': 6  // Ashoj is another name for Ashwin
-    };
-
     NEPALI_FESTIVALS.forEach((festival, index) => {
-      const eventId = `festival_${index}`;
-      const monthNumber = monthNameToNumber[festival.month] || (index + 1);
+      const monthNumber = NEPALI_MONTH_MAP[festival.month];
 
-      // Assuming month numbers map to festivals
+      if (!monthNumber || festival.month === 'Varies') {
+        // Skip festivals with unknown months or variable dates
+        return;
+      }
+
+      // Determine if this is a multi-day festival
+      const startDay = festival.day || (festival as any).startDay || 1;
+      const endDay = (festival as any).endDay || festival.day || 1;
+      const isMultiDay = startDay !== endDay;
+
+      // Create an event for the first day (this is what appears in getFestivals())
       const nepaliDate: NepaliDateInfo = {
         year: 2080,
         month: monthNumber,
-        day: festival.day || 1
+        day: startDay
       };
 
       const gregorianDate = nepaliToGregorian(nepaliDate);
 
       this.festivals.push({
-        id: eventId,
+        id: `festival_${index}`,
         title: festival.name,
         nepaliDate,
         gregorianDate,
@@ -101,6 +102,11 @@ export class NepaliEventService {
         },
         recurring: {
           pattern: 'yearly'
+        },
+        festivalDuration: {
+          isMultiDay,
+          startDay,
+          endDay
         }
       });
     });

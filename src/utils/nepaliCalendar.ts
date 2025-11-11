@@ -34,8 +34,39 @@ export const TITHI_NAMES = [
 export const NEPALI_FESTIVALS = [
   { name: 'Prithvi Jayanti', month: 'Baisakh', day: 1, isLunar: false },
   { name: 'Teej', month: 'Shrawan', day: 16, isLunar: true },
-  { name: 'Dashain', month: 'Ashoj', startDay: 1, endDay: 15, isLunar: false },
-  { name: 'Tihar', month: 'Kartik', startDay: 1, endDay: 5, isLunar: false },
+  {
+    name: 'Dashain',
+    month: 'Ashoj',
+    startDay: 1,
+    endDay: 10,  // Corrected from 15 to 10 (the 10 significant days)
+    isLunar: false,
+    days: [
+      'Ghatasthapana',    // Day 1
+      'Pratipada',        // Day 2
+      'Dwitiya',          // Day 3
+      'Tritiya',          // Day 4
+      'Chaturthi',        // Day 5
+      'Panchami',         // Day 6
+      'Shashthi',         // Day 7
+      'Maha Saptami',     // Day 8
+      'Maha Ashtami',     // Day 9
+      'Maha Navami'       // Day 10
+    ]
+  },
+  {
+    name: 'Tihar',
+    month: 'Kartik',
+    startDay: 1,
+    endDay: 5,
+    isLunar: false,
+    days: [
+      'Kaag Tihar',       // Day 1 - Crow Day
+      'Kukur Tihar',      // Day 2 - Dog Day
+      'Lakshmi Puja',     // Day 3 - Goddess of Wealth Day
+      'Govardhan Puja',   // Day 4 - Mountain Worship
+      'Bhai Tika'         // Day 5 - Brother-Sister Bonding
+    ]
+  },
   { name: 'Chhath', month: 'Kartik', day: 20, isLunar: false },
   { name: 'Maha Shivaratri', month: 'Falgun', day: 14, isLunar: true },
   { name: 'Holi', month: 'Falgun', day: 15, isLunar: true },
@@ -177,6 +208,50 @@ export function getNepaliMonthName(month: number): string {
 }
 
 /**
+ * Get the specific day name for a festival day
+ * For multi-day festivals, returns the individual day name (e.g., "Maha Astami" for Dashain day 9)
+ * For single-day festivals, returns the festival name
+ *
+ * @param festivalName - Name of the festival
+ * @param dayOfMonth - Day of the month (1-30+)
+ * @param nepaliMonth - Nepali month number
+ * @returns The display name for that day
+ */
+export function getFestivalDayName(
+  festivalName: string,
+  dayOfMonth: number,
+  nepaliMonth: number
+): string {
+  const festival = NEPALI_FESTIVALS.find(f => f.name === festivalName);
+  if (!festival) {
+    return festivalName;
+  }
+
+  // Check if this is a multi-day festival with day names
+  const monthNum = NEPALI_MONTH_MAP[festival.month];
+  if (monthNum !== nepaliMonth) {
+    return festivalName;
+  }
+
+  const startDay = festival.day || (festival as any).startDay || 1;
+  const endDay = (festival as any).endDay || festival.day || 1;
+  const daysArray = (festival as any).days;
+
+  // If not multi-day or no days array, return festival name
+  if (!daysArray || startDay === endDay) {
+    return festivalName;
+  }
+
+  // Calculate which day of the festival it is
+  const dayIndex = dayOfMonth - startDay;
+  if (dayIndex >= 0 && dayIndex < daysArray.length) {
+    return daysArray[dayIndex];
+  }
+
+  return festivalName;
+}
+
+/**
  * Get upcoming festivals for a given month
  */
 export function getUpcomingFestivals(nepaliMonth: number, nepaliYear: number): Array<{
@@ -201,16 +276,123 @@ export function getUpcomingFestivals(nepaliMonth: number, nepaliYear: number): A
 }
 
 /**
+ * Map Nepali month names to month numbers (1-12, 1-indexed)
+ */
+export const NEPALI_MONTH_MAP: { [key: string]: number } = {
+  'Baisakh': 1,
+  'Jestha': 2,
+  'Asar': 3,
+  'Shrawan': 4,
+  'Bhadra': 5,
+  'Ashwin': 6,
+  'Kartik': 7,
+  'Mangsir': 8,
+  'Poush': 9,
+  'Magh': 10,
+  'Falgun': 11,
+  'Chaitra': 12,
+  // Alternative spellings
+  'Ashoj': 6,
+};
+
+/**
+ * Convert a Nepali date range to Gregorian date range
+ * Useful for multi-day festivals
+ */
+export function nepaliDateRangeToGregorian(
+  year: number,
+  month: string,
+  startDay: number,
+  endDay: number
+): GregorianDate[] {
+  const monthNum = NEPALI_MONTH_MAP[month];
+  if (!monthNum) {
+    console.warn(`Unknown Nepali month: ${month}`);
+    return [];
+  }
+
+  const dates: GregorianDate[] = [];
+  for (let day = startDay; day <= endDay; day++) {
+    const gregorianDate = nepaliToGregorian({
+      year,
+      month: monthNum,
+      day
+    });
+    dates.push(gregorianDate);
+  }
+  return dates;
+}
+
+/**
+ * Check if a given Gregorian date falls within a festival's date range
+ */
+export function isFestivalOnDate(
+  festivalName: string,
+  date: GregorianDate,
+  nepaliYear: number
+): boolean {
+  const festival = NEPALI_FESTIVALS.find(f => f.name === festivalName);
+  if (!festival || festival.month === 'Varies') {
+    return false;
+  }
+
+  const monthNum = NEPALI_MONTH_MAP[festival.month];
+  if (!monthNum) {
+    return false;
+  }
+
+  // Handle both single-day and multi-day festivals
+  const startDay = festival.day || (festival as any).startDay || 1;
+  const endDay = (festival as any).endDay || festival.day || 1;
+
+  const dateRange = nepaliDateRangeToGregorian(nepaliYear, festival.month, startDay, endDay);
+  return dateRange.some(
+    d => d.year === date.year && d.month === date.month && d.day === date.day
+  );
+}
+
+/**
+ * Get festival date range for display
+ */
+export function getFestivalDateRange(
+  festival: typeof NEPALI_FESTIVALS[0],
+  nepaliYear: number
+): { start: GregorianDate; end: GregorianDate } | null {
+  if (festival.month === 'Varies') {
+    return null;
+  }
+
+  const monthNum = NEPALI_MONTH_MAP[festival.month];
+  if (!monthNum) {
+    return null;
+  }
+
+  const startDay = festival.day || (festival as any).startDay || 1;
+  const endDay = (festival as any).endDay || festival.day || 1;
+
+  const startGregorian = nepaliToGregorian({
+    year: nepaliYear,
+    month: monthNum,
+    day: startDay
+  });
+
+  const endGregorian = nepaliToGregorian({
+    year: nepaliYear,
+    month: monthNum,
+    day: endDay
+  });
+
+  return { start: startGregorian, end: endGregorian };
+}
+
+/**
  * Check if a date is a major festival
  */
 export function isMajorFestival(date: GregorianDate): string | null {
   const nepaliDate = gregorianToNepali(date);
 
   for (const festival of NEPALI_FESTIVALS) {
-    if (festival.month === 'Varies') continue;
-
-    // Simple check - would need proper month name mapping in production
-    if (nepaliDate.day === festival.day) {
+    if (isFestivalOnDate(festival.name, date, nepaliDate.year)) {
       return festival.name;
     }
   }

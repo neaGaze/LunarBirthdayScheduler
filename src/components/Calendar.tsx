@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { gregorianToNepali, nepaliToGregorian, getNepaliMonthName, calculateTithi, TITHI_NAMES } from '../utils/nepaliCalendar.js';
+import { gregorianToNepali, nepaliToGregorian, getNepaliMonthName, calculateTithi, TITHI_NAMES, isFestivalOnDate, getFestivalDayName } from '../utils/nepaliCalendar.js';
 import './Calendar.css';
 
 const Calendar: React.FC = () => {
@@ -44,12 +44,20 @@ const Calendar: React.FC = () => {
           e.gregorianDate.day === gregorianDate.day
       );
 
-      const dayFestivals = festivals.filter(
-        (f) =>
+      const dayFestivals = festivals.filter((f) => {
+        // Check if festival is on this exact day (for first-day reference)
+        const isExactDay =
           f.gregorianDate.year === gregorianDate.year &&
           f.gregorianDate.month === gregorianDate.month &&
-          f.gregorianDate.day === gregorianDate.day
-      );
+          f.gregorianDate.day === gregorianDate.day;
+
+        // For multi-day festivals, check if this date falls within the festival range
+        const isWithinRange =
+          f.festivalDuration?.isMultiDay &&
+          isFestivalOnDate(f.title, gregorianDate, nepaliDate.year);
+
+        return isExactDay || isWithinRange;
+      });
 
       const dayBirthdays = birthdays.filter(
         (b) =>
@@ -80,11 +88,14 @@ const Calendar: React.FC = () => {
 
           {hasEvent && (
             <div className="day-events">
-              {dayFestivals.map((festival) => (
-                <div key={festival.id} className="event festival" title={festival.title}>
-                  {festival.title}
-                </div>
-              ))}
+              {dayFestivals.map((festival) => {
+                const festivalDayName = getFestivalDayName(festival.title, nepaliDate.day, nepaliDate.month);
+                return (
+                  <div key={festival.id} className="event festival" title={festival.title}>
+                    {festivalDayName}
+                  </div>
+                );
+              })}
               {dayEvents.map((event) => (
                 <div key={event.id} className="event custom" title={event.title}>
                   {event.title}
