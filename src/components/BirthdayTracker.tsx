@@ -133,13 +133,65 @@ const BirthdayTracker: React.FC = () => {
   };
 
   /**
-   * Find the next occurrence of a specific tithi starting from a given date
+   * Calculate when a tithi occurs each year from 1991-2091
+   * Finds the occurrence of the tithi closest to the target month/day for each year
+   * This creates a 100-year pattern that shows how the birthday date shifts through calendar years
    */
-  const findNextTithiDate = (startDate: Date, targetTithiNumber: number): Date => {
-    let currentDate = new Date(startDate);
+  const calculateYearlyTithiBirthdays = (targetMonth: number, targetDay: number, targetTithiNumber: number): Array<{ year: number; date: Date | null }> => {
+    const yearlyDates: Array<{ year: number; date: Date | null }> = [];
 
-    // Search for up to 60 days to find the tithi
-    for (let i = 0; i < 60; i++) {
+    // Search through 100 years from birth year
+    for (let year = 1991; year <= 2091; year++) {
+      // For each year, find the tithi occurrence closest to the target month/day
+      // Search ±180 days around the target month to account for lunar calendar shift
+      const targetDate = new Date(year, targetMonth - 1, targetDay);
+      let closestDate: Date | null = null;
+      let closestDistance = Infinity;
+
+      for (let dayOffset = -180; dayOffset <= 180; dayOffset++) {
+        const checkDate = new Date(targetDate);
+        checkDate.setDate(checkDate.getDate() + dayOffset);
+
+        // Skip dates outside the target year
+        if (checkDate.getFullYear() !== year) {
+          continue;
+        }
+
+        const tithiCheckDate = {
+          year: checkDate.getFullYear(),
+          month: checkDate.getMonth() + 1,
+          day: checkDate.getDate()
+        };
+
+        const tithi = calculateTithi(tithiCheckDate);
+
+        // If this is the target tithi, track if it's the closest to target month
+        if (tithi.number === targetTithiNumber) {
+          const distance = Math.abs(dayOffset);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestDate = new Date(checkDate);
+          }
+        }
+      }
+
+      yearlyDates.push({ year, date: closestDate });
+    }
+
+    return yearlyDates;
+  };
+
+  /**
+   * Count occurrences of a tithi between two dates (sanity check)
+   * Between two occurrences of the same tithi, there should be 12 other occurrences
+   * (i.e., 12 complete lunar months pass, each with one occurrence of this tithi)
+   */
+  const countTithiBetweenDates = (startDate: Date, endDate: Date, targetTithiNumber: number): number => {
+    let count = 0;
+    let currentDate = new Date(startDate);
+    currentDate.setDate(currentDate.getDate() + 1); // Start from day after first occurrence
+
+    while (currentDate < endDate) {
       const checkDate = {
         year: currentDate.getFullYear(),
         month: currentDate.getMonth() + 1,
@@ -148,32 +200,49 @@ const BirthdayTracker: React.FC = () => {
 
       const tithi = calculateTithi(checkDate);
       if (tithi.number === targetTithiNumber) {
-        return new Date(currentDate);
+        count++;
       }
 
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Fallback to start date
-    return startDate;
+    return count;
   };
 
   /**
-   * Get next 3 years of Gregorian dates for a specific tithi
+   * Get next 3 occurrences of a specific tithi using the 100-year yearly pattern
+   *
+   * Algorithm:
+   * 1. Calculate yearly tithi occurrences for all 100 years (1991-2091)
+   * 2. This creates a pattern showing how the birthday date shifts through calendar years
+   * 3. Find the first 3 future dates from this pattern
+   * 4. Dates are naturally spaced ~11-13 months apart (one per calendar year)
    */
   const getNextThreeYearsTithiDates = (tithiNumber: number): Date[] => {
     const today = new Date();
     const dates: Date[] = [];
 
-    // Find dates for the next 3 years
-    for (let year = 0; year < 3; year++) {
-      const searchStartDate = new Date(today.getFullYear() + year, today.getMonth(), today.getDate());
-      const nextTithiDate = findNextTithiDate(searchStartDate, tithiNumber);
+    // Calculate the yearly pattern for the entire 100-year span
+    const yearlyBirthdays = calculateYearlyTithiBirthdays(formData.gregorianMonth, formData.gregorianDay, tithiNumber);
 
-      // Only add if it's in the target year or early next year
-      if (nextTithiDate.getFullYear() <= today.getFullYear() + year + 1) {
-        dates.push(nextTithiDate);
+    // Collect the first 3 future occurrences
+    for (const yearData of yearlyBirthdays) {
+      if (yearData.date && yearData.date > today) {
+        dates.push(yearData.date);
+
+        // Stop after finding 3 future dates
+        if (dates.length === 3) {
+          break;
+        }
       }
+    }
+
+    // Sanity check: Log the count of tithis between occurrences
+    if (dates.length >= 2) {
+      const countBetween = countTithiBetweenDates(dates[0], dates[1], tithiNumber);
+      console.log(
+        `Tithi ${TITHI_NAMES[tithiNumber - 1]} occurrences between ${dates[0].toDateString()} and ${dates[1].toDateString()}: ${countBetween} (expected: 12)`
+      );
     }
 
     return dates;
@@ -369,18 +438,18 @@ const BirthdayTracker: React.FC = () => {
               </div>
             )}
 
-            {/* Show 3-year preview for tithi-based birthdays */}
+            {/* Show 3-occurrence preview for tithi-based birthdays */}
             {saveBirthdayMode === 'tithi' && formData.tithiNumber > 0 && (
               <div className="tithi-preview">
-                <h4>📅 Next 3 Years for This Tithi</h4>
+                <h4>🌙 Next Occurrences of This Tithi</h4>
                 <p className="preview-hint">
-                  Your birthday will occur on these dates when you celebrate by {TITHI_NAMES[formData.tithiNumber - 1]}:
+                  Your birthday will occur on these dates (each ~11-13 months apart) when you celebrate by {TITHI_NAMES[formData.tithiNumber - 1]}:
                 </p>
                 <div className="preview-dates">
                   {getNextThreeYearsTithiDates(formData.tithiNumber).map((date, index) => (
                     <div key={index} className="preview-date-item">
                       <span className="preview-date">
-                        {date.getDate()}/{date.getMonth() + 1}/{date.getFullYear()}
+                        {date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                       </span>
                       <span className="preview-day-name">
                         {date.toLocaleDateString('en-US', { weekday: 'long' })}

@@ -62,6 +62,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     success: number;
     failed: number;
     message?: string;
+    errors?: string[];
   } | null>(null);
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -221,16 +222,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const deleteBirthday = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (nepaliEventService) {
         nepaliEventService.deleteLunarBirthday(id);
         const newBirthdays = birthdays.filter((b) => b.id !== id);
         setBirthdays(newBirthdays);
         localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
+
+        // Delete from Google Calendar if synced
+        if (syncService && googleCalendarService) {
+          try {
+            const googleEventId = syncService.getSyncedGoogleEventId(id);
+            if (googleEventId) {
+              // Get the calendar ID from localStorage (set during sync)
+              const calendarId = localStorage.getItem('nepali_calendar_id');
+              if (calendarId) {
+                await googleCalendarService.deleteEvent(calendarId, googleEventId);
+                showNotification('success', 'Birthday deleted from Google Calendar');
+              }
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            console.error('Failed to delete birthday from Google Calendar:', errorMessage);
+            showNotification('error', 'Birthday deleted locally but could not delete from Google Calendar');
+          }
+        }
+
         showNotification('success', 'Birthday deleted successfully');
       }
     },
-    [birthdays, nepaliEventService, showNotification]
+    [birthdays, nepaliEventService, syncService, googleCalendarService, showNotification]
   );
 
   const syncEvents = useCallback(
@@ -279,6 +300,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         const result = await syncService.syncToGoogleCalendar(config);
+
+        // Store the calendar ID for later use in birthday deletion
+        localStorage.setItem('nepali_calendar_id', config.calendarId);
+
         setSyncResult({
           success: result.successCount,
           failed: result.failureCount,

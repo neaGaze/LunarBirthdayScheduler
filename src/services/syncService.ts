@@ -27,6 +27,7 @@ export class SyncService {
   private googleCalendarService: GoogleCalendarService;
   private nepaliEventService: NepaliEventService;
   private syncedEventIds: Map<string, string> = new Map(); // Maps Nepali event ID to Google event ID
+  private readonly SYNC_MAPPINGS_KEY = 'nepali_calendar_sync_mappings';
 
   constructor(
     googleCalendarService: GoogleCalendarService,
@@ -34,6 +35,7 @@ export class SyncService {
   ) {
     this.googleCalendarService = googleCalendarService;
     this.nepaliEventService = nepaliEventService;
+    this.loadSyncMappings();
   }
 
   /**
@@ -63,6 +65,23 @@ export class SyncService {
 
     // Fallback to the start date if tithi not found
     return startDate;
+  }
+
+  /**
+   * Find the first occurrence of a specific tithi in a given year
+   * @param year The year to search in
+   * @param targetTithiNumber The tithi number to find (1-30)
+   * @returns The first date in that year with the target tithi
+   */
+  private findFirstTithiInYear(year: number, targetTithiNumber: number): GregorianDate {
+    // Start from January 1st of the given year
+    const startDate: GregorianDate = {
+      year: year,
+      month: 1,
+      day: 1
+    };
+
+    return this.findNextTithiDate(startDate, targetTithiNumber);
   }
 
   /**
@@ -116,15 +135,12 @@ export class SyncService {
         // Convert birthdays to events
         birthdays.forEach(birthday => {
           let gregorianDate: GregorianDate;
+          let descriptionSuffix = '';
 
           if (birthday.isTithiBased && birthday.tithiNumber) {
-            // For tithi-based birthdays, find the next occurrence of this tithi
-            const today: GregorianDate = {
-              year: now.getFullYear(),
-              month: now.getMonth() + 1,
-              day: now.getDate()
-            };
-            gregorianDate = this.findNextTithiDate(today, birthday.tithiNumber);
+            // For tithi-based birthdays, find the first occurrence of this tithi in the current year
+            gregorianDate = this.findFirstTithiInYear(currentYear, birthday.tithiNumber);
+            descriptionSuffix = ` (Celebrates on Tithi: ${birthday.tithiNumber} each year)`;
           } else {
             // For date-based birthdays, use the same month/day in current year
             gregorianDate = {
@@ -134,10 +150,6 @@ export class SyncService {
             };
           }
 
-          const descriptionSuffix = birthday.isTithiBased && birthday.tithiNumber
-            ? ` (Tithi-based: repeats on lunar day)`
-            : ``;
-
           events.push({
             id: birthday.id,
             title: `${birthday.name}'s Birthday`,
@@ -146,7 +158,10 @@ export class SyncService {
             description: `Birthday (Nepali date: ${birthday.nepaliDate.day}/${birthday.nepaliDate.month}/${birthday.nepaliDate.year})${descriptionSuffix}`,
             isFestival: false,
             isLunarEvent: true,
-            reminder: birthday.reminder,
+            reminder: {
+              enabled: true,
+              minutesBefore: 1440  // Default 1 day before
+            },
             recurring: {
               pattern: 'yearly'
             }
@@ -188,6 +203,9 @@ export class SyncService {
           result.errors.push(`Failed to sync event "${event.title}": ${errorMessage}`);
         }
       }
+
+      // Save mappings to localStorage after syncing
+      this.saveSyncMappings();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       result.errors.push(`Sync process failed: ${errorMessage}`);
@@ -220,6 +238,9 @@ export class SyncService {
           result.errors.push(`Failed to remove event ${googleEventId}: ${errorMessage}`);
         }
       }
+
+      // Save mappings to localStorage after unsyncing
+      this.saveSyncMappings();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       result.errors.push(`Unsync process failed: ${errorMessage}`);
@@ -247,6 +268,40 @@ export class SyncService {
     for (const [key, value] of Object.entries(mappings)) {
       this.syncedEventIds.set(key, value);
     }
+  }
+
+  /**
+   * Save synced event mappings to localStorage
+   */
+  private saveSyncMappings(): void {
+    try {
+      const mappings = this.getSyncedEventMappings();
+      localStorage.setItem(this.SYNC_MAPPINGS_KEY, JSON.stringify(mappings));
+    } catch (error) {
+      console.error('Failed to save sync mappings to localStorage:', error);
+    }
+  }
+
+  /**
+   * Load synced event mappings from localStorage
+   */
+  private loadSyncMappings(): void {
+    try {
+      const stored = localStorage.getItem(this.SYNC_MAPPINGS_KEY);
+      if (stored) {
+        const mappings = JSON.parse(stored);
+        this.restoreSyncedEventMappings(mappings);
+      }
+    } catch (error) {
+      console.error('Failed to load sync mappings from localStorage:', error);
+    }
+  }
+
+  /**
+   * Get Google Calendar event ID for a Nepali event
+   */
+  getSyncedGoogleEventId(nepaliEventId: string): string | undefined {
+    return this.syncedEventIds.get(nepaliEventId);
   }
 }
 
