@@ -295,7 +295,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name: birthday.name,
             nepaliDate: birthday.nepaliDate,
             gregorianBirthDate: birthday.gregorianBirthDate,
-            reminder: birthday.reminder
+            reminder: birthday.reminder,
+            isTithiBased: birthday.isTithiBased,
+            tithiNumber: birthday.tithiNumber
           });
         });
 
