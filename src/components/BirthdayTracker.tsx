@@ -133,53 +133,138 @@ const BirthdayTracker: React.FC = () => {
   };
 
   /**
-   * Calculate when a tithi occurs each year from 1991-2091
-   * Finds the occurrence of the tithi closest to the target month/day for each year
-   * This creates a 100-year pattern that shows how the birthday date shifts through calendar years
+   * Find the lunar birthday occurrence for a specific solar year
+   *
+   * IMPORTANT: Tithis repeat every ~29.5 days (each lunar month).
+   * A "lunar birthday" is celebrated ONCE per SOLAR YEAR on the tithi
+   * that falls closest to the original birth date's position in the year.
+   *
+   * Algorithm:
+   * 1. For the given solar year, find ALL occurrences of the target tithi
+   * 2. Pick the occurrence that's closest to the original birth date's
+   *    day-of-year position (e.g., if born on day 177 of year, find
+   *    the tithi occurrence nearest to day 177 of the target year)
    */
-  const calculateYearlyTithiBirthdays = (targetMonth: number, targetDay: number, targetTithiNumber: number): Array<{ year: number; date: Date | null }> => {
-    const yearlyDates: Array<{ year: number; date: Date | null }> = [];
+  const findLunarBirthdayForYear = (
+    targetYear: number,
+    targetTithiNumber: number,
+    originalBirthDayOfYear: number
+  ): Date | null => {
+    console.log(`[findLunarBirthdayForYear] Finding Tithi ${targetTithiNumber} for year ${targetYear}`);
+    console.log(`[findLunarBirthdayForYear] Original birth was on day ${originalBirthDayOfYear} of year`);
 
-    // Search through 100 years from birth year
-    for (let year = 1991; year <= 2091; year++) {
-      // For each year, find the tithi occurrence closest to the target month/day
-      // Search ±180 days around the target month to account for lunar calendar shift
-      const targetDate = new Date(year, targetMonth - 1, targetDay);
-      let closestDate: Date | null = null;
-      let closestDistance = Infinity;
+    const tithiOccurrences: Date[] = [];
 
-      for (let dayOffset = -180; dayOffset <= 180; dayOffset++) {
-        const checkDate = new Date(targetDate);
-        checkDate.setDate(checkDate.getDate() + dayOffset);
-
-        // Skip dates outside the target year
-        if (checkDate.getFullYear() !== year) {
-          continue;
-        }
-
-        const tithiCheckDate = {
-          year: checkDate.getFullYear(),
-          month: checkDate.getMonth() + 1,
-          day: checkDate.getDate()
+    // Search through the entire year
+    for (let month = 1; month <= 12; month++) {
+      const daysInMonth = new Date(targetYear, month, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const checkDate = {
+          year: targetYear,
+          month: month,
+          day: day
         };
 
-        const tithi = calculateTithi(tithiCheckDate);
+        const tithi = calculateTithi(checkDate);
 
-        // If this is the target tithi, track if it's the closest to target month
         if (tithi.number === targetTithiNumber) {
-          const distance = Math.abs(dayOffset);
-          if (distance < closestDistance) {
-            closestDistance = distance;
-            closestDate = new Date(checkDate);
-          }
+          tithiOccurrences.push(new Date(targetYear, month - 1, day));
         }
       }
-
-      yearlyDates.push({ year, date: closestDate });
     }
 
-    return yearlyDates;
+    console.log(`[findLunarBirthdayForYear] Found ${tithiOccurrences.length} occurrences of Tithi ${targetTithiNumber} in ${targetYear}`);
+
+    if (tithiOccurrences.length === 0) {
+      return null;
+    }
+
+    // Find the occurrence closest to the original birth day-of-year
+    let closestOccurrence = tithiOccurrences[0];
+    let minDifference = Math.abs(getDayOfYear(closestOccurrence) - originalBirthDayOfYear);
+
+    for (const occurrence of tithiOccurrences) {
+      const dayOfYear = getDayOfYear(occurrence);
+      const difference = Math.abs(dayOfYear - originalBirthDayOfYear);
+
+      if (difference < minDifference) {
+        minDifference = difference;
+        closestOccurrence = occurrence;
+      }
+    }
+
+    console.log(`[findLunarBirthdayForYear] Closest occurrence: ${closestOccurrence.toDateString()} (day ${getDayOfYear(closestOccurrence)} vs original day ${originalBirthDayOfYear})`);
+    return closestOccurrence;
   };
+
+  /**
+   * Get day of year (1-366) for a date
+   */
+  const getDayOfYear = (date: Date): number => {
+    const start = new Date(date.getFullYear(), 0, 0);
+    const diff = date.getTime() - start.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    return Math.floor(diff / oneDay);
+  };
+
+  /**
+   * Calculate lunar birthdays for future years
+   *
+   * Algorithm:
+   * - A tithi repeats every ~29.5 days (12-13 times per solar year)
+   * - The "lunar birthday" is the occurrence closest to the original birth date's
+   *   position in the solar year
+   * - For each future year, find all tithi occurrences and pick the one closest
+   *   to the original birth day-of-year
+   */
+  const calculateYearlyTithiBirthdays = (
+    gregorianBirthYear: number,
+    gregorianBirthMonth: number,
+    gregorianBirthDay: number,
+    targetTithiNumber: number
+  ): Date[] => {
+    const lunarBirthdays: Date[] = [];
+
+    // Calculate the original birth date's day-of-year (e.g., June 26 = day 177)
+    const originalBirthDate = new Date(gregorianBirthYear, gregorianBirthMonth - 1, gregorianBirthDay);
+    const originalDayOfYear = getDayOfYear(originalBirthDate);
+
+    console.log('==== calculateYearlyTithiBirthdays ====');
+    console.log(`Birth date: ${gregorianBirthMonth}/${gregorianBirthDay}/${gregorianBirthYear}`);
+    console.log(`Original day of year: ${originalDayOfYear}`);
+    console.log(`Target Tithi: ${targetTithiNumber}`);
+
+    // Find lunar birthdays for the next several years
+    const currentYear = new Date().getFullYear();
+    const yearsToCalculate = 10; // Calculate for next 10 years
+
+    for (let yearOffset = 0; yearOffset < yearsToCalculate; yearOffset++) {
+      const targetYear = currentYear + yearOffset;
+
+      const birthdayForYear = findLunarBirthdayForYear(
+        targetYear,
+        targetTithiNumber,
+        originalDayOfYear
+      );
+
+      if (birthdayForYear) {
+        // Only add future dates
+        if (birthdayForYear.getTime() > new Date().getTime()) {
+          lunarBirthdays.push(birthdayForYear);
+          console.log(`Added ${birthdayForYear.toDateString()} for year ${targetYear}`);
+        }
+      }
+    }
+
+    console.log('\n==== Final Results ====');
+    console.log('Total future occurrences found:', lunarBirthdays.length);
+    lunarBirthdays.forEach((d, i) => {
+      console.log(`  ${i + 1}. ${d.toDateString()}`);
+    });
+
+    return lunarBirthdays;
+  };
+
 
   /**
    * Count occurrences of a tithi between two dates (sanity check)
@@ -209,40 +294,48 @@ const BirthdayTracker: React.FC = () => {
     return count;
   };
 
+
   /**
-   * Get next 3 occurrences of a specific tithi using the 100-year yearly pattern
+   * Get next 3 occurrences of a specific tithi
    *
    * Algorithm:
-   * 1. Calculate yearly tithi occurrences for all 100 years (1991-2091)
-   * 2. This creates a pattern showing how the birthday date shifts through calendar years
-   * 3. Find the first 3 future dates from this pattern
-   * 4. Dates are naturally spaced ~11-13 months apart (one per calendar year)
+   * 1. Calculate lunar birthday occurrences for future years
+   * 2. Return the first 3 future occurrences
+   * 3. Each occurrence is ~1 solar year apart (365 days)
+   * 4. Sanity check: between each occurrence, the target tithi appears ~12 times (once per lunar month)
    */
   const getNextThreeYearsTithiDates = (tithiNumber: number): Date[] => {
-    const today = new Date();
     const dates: Date[] = [];
 
-    // Calculate the yearly pattern for the entire 100-year span
-    const yearlyBirthdays = calculateYearlyTithiBirthdays(formData.gregorianMonth, formData.gregorianDay, tithiNumber);
+    // Calculate lunar birthday occurrences based on original Gregorian birth date
+    const allLunarBirthdays = calculateYearlyTithiBirthdays(
+      formData.gregorianYear,
+      formData.gregorianMonth,
+      formData.gregorianDay,
+      tithiNumber
+    );
 
-    // Collect the first 3 future occurrences
-    for (const yearData of yearlyBirthdays) {
-      if (yearData.date && yearData.date > today) {
-        dates.push(yearData.date);
+    // Collect the first 3 occurrences
+    for (const birthday of allLunarBirthdays) {
+      dates.push(birthday);
 
-        // Stop after finding 3 future dates
-        if (dates.length === 3) {
-          break;
-        }
+      // Stop after finding 3 dates
+      if (dates.length === 3) {
+        break;
       }
     }
 
     // Sanity check: Log the count of tithis between occurrences
     if (dates.length >= 2) {
-      const countBetween = countTithiBetweenDates(dates[0], dates[1], tithiNumber);
-      console.log(
-        `Tithi ${TITHI_NAMES[tithiNumber - 1]} occurrences between ${dates[0].toDateString()} and ${dates[1].toDateString()}: ${countBetween} (expected: 12)`
-      );
+      for (let i = 0; i < dates.length - 1; i++) {
+        const countBetween = countTithiBetweenDates(dates[i], dates[i + 1], tithiNumber);
+        const daysBetween = Math.round((dates[i + 1].getTime() - dates[i].getTime()) / (1000 * 60 * 60 * 24));
+        console.log(
+          `Tithi ${TITHI_NAMES[tithiNumber - 1]} between ${dates[i].toDateString()} and ${dates[i + 1].toDateString()}: ` +
+          `${daysBetween} days (~${(daysBetween / 365).toFixed(1)} solar years), ` +
+          `${countBetween} occurrences (expected: ~12)`
+        );
+      }
     }
 
     return dates;
@@ -484,6 +577,54 @@ const BirthdayTracker: React.FC = () => {
                   : `Birthday will be celebrated on ${formData.tithiNumber > 0 ? TITHI_NAMES[formData.tithiNumber - 1] : 'the lunar day'} every lunar month`}
               </p>
             </div>
+
+            {/* Show preview of next tithi occurrences */}
+            {saveBirthdayMode === 'tithi' && formData.tithiNumber > 0 && (
+              <div className="form-section">
+                <h4>📅 Next 3 Lunar Birthday Occurrences</h4>
+                <p className="form-hint">
+                  Based on your birth date ({formData.gregorianMonth}/{formData.gregorianDay}/{formData.gregorianYear}),
+                  your lunar birthday ({TITHI_NAMES[formData.tithiNumber - 1]}) will occur on these dates:
+                </p>
+                <div style={{
+                  backgroundColor: '#f5f5f5',
+                  padding: '15px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd'
+                }}>
+                  {(() => {
+                    const nextDates = getNextThreeYearsTithiDates(formData.tithiNumber);
+
+                    if (nextDates.length === 0) {
+                      return <p style={{ color: '#666' }}>No future occurrences found.</p>;
+                    }
+
+                    return (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {nextDates.map((date, index) => (
+                          <li key={index} style={{
+                            padding: '10px 0',
+                            borderBottom: index < nextDates.length - 1 ? '1px solid #e0e0e0' : 'none'
+                          }}>
+                            <strong>Occurrence {index + 1}:</strong> {date.toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              weekday: 'long'
+                            })}
+                            {index > 0 && (
+                              <div style={{ fontSize: '0.9em', color: '#666', marginTop: '4px' }}>
+                                (≈ {Math.round((nextDates[index].getTime() - nextDates[index - 1].getTime()) / (1000 * 60 * 60 * 24))} days from previous)
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
 
             <div className="form-group checkbox">
               <label htmlFor="reminderEnabled">

@@ -50,6 +50,11 @@ export interface LunarBirthday {
   // Tithi-based birthday support
   isTithiBased?: boolean;
   tithiNumber?: number; // 1-30, the lunar day to celebrate on
+  lastTithiBirthdayDate?: {
+    year: number;
+    month: number;
+    day: number;
+  }; // The baseline date for calculating future tithi occurrences
 }
 
 export class NepaliEventService {

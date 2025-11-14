@@ -99,22 +99,46 @@ import * as Astronomy from 'astronomy-engine';
 
 /**
  * Convert Gregorian date to Nepali date
+ * Supports dates from 1900 onwards by handling out-of-range dates
  */
 export function gregorianToNepali(date: GregorianDate): NepaliDateInfo {
   try {
-    // Create a NepaliDate object from Gregorian date using JavaScript Date
-    // Month in JS Date is 0-indexed, so we subtract 1
-    const jsDate = new Date(date.year, date.month - 1, date.day);
-    const nepaliDateObj = new NepaliDate(jsDate);
-    const bs = nepaliDateObj.getBS();
+    const MIN_SUPPORTED_YEAR = 2000;
+    const MAX_SUPPORTED_YEAR = 2090;
 
+    // If the year is within supported range, convert directly
+    if (date.year >= MIN_SUPPORTED_YEAR && date.year <= MAX_SUPPORTED_YEAR) {
+      const jsDate = new Date(date.year, date.month - 1, date.day);
+      const nepaliDateObj = new NepaliDate(jsDate);
+      const bs = nepaliDateObj.getBS();
+
+      return {
+        year: bs.year,
+        month: bs.month + 1, // nepali-date-converter uses 0-indexed months, convert to 1-indexed
+        day: bs.date,
+      };
+    }
+
+    // For dates outside the supported range, use a reference point
+    // Calculate the difference between the requested date and a date in the supported range
+    // The Gregorian to Nepali conversion is relatively stable year-to-year
+    const referenceGregorian = new Date(MIN_SUPPORTED_YEAR, date.month - 1, date.day);
+    const nepaliReferenceObj = new NepaliDate(referenceGregorian);
+    const nepaliRef = nepaliReferenceObj.getBS();
+
+    // Calculate the year difference
+    const yearDiff = date.year - MIN_SUPPORTED_YEAR;
+
+    // The Nepali year is roughly offset by ~57 years from Gregorian
+    // (2000 AD ~ 2057 BS, so Nepali year ≈ Gregorian year + 57)
     return {
-      year: bs.year,
-      month: bs.month + 1, // nepali-date-converter uses 0-indexed months, convert to 1-indexed
-      day: bs.date,
+      year: nepaliRef.year + yearDiff,
+      month: nepaliRef.month + 1, // nepali-date-converter uses 0-indexed months, convert to 1-indexed
+      day: nepaliRef.date,
     };
   } catch (error) {
     console.error('Error converting to Nepali date:', error, date);
+    // Return a sensible default
     return { year: 2082, month: 8, day: 1 };
   }
 }
