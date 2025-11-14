@@ -218,8 +218,10 @@ export class SyncService {
             );
             const originalBirthDayOfYear = this.getDayOfYear(originalBirthDate);
 
-            // Create event for the next future occurrence only
-            for (let yearOffset = 0; yearOffset < 10; yearOffset++) {
+            // Create events for the next 3 future occurrences
+            let eventsCreated = 0;
+            let maxBirthdaysToSync = 3;
+            for (let yearOffset = 0; yearOffset < 10 && eventsCreated < maxBirthdaysToSync; yearOffset++) {
               const targetYear = currentYear + yearOffset;
 
               const gregorianDate = this.findTithiBirthdayForYear(
@@ -237,7 +239,7 @@ export class SyncService {
                 continue;
               }
 
-              console.log(`[Sync] Using this date for sync!`);
+              console.log(`[Sync] Creating event ${eventsCreated + 1}/${maxBirthdaysToSync} for sync`);
 
               // Convert the calculated Gregorian date to Nepali date
               const nepaliDate = gregorianToNepali(gregorianDate);
@@ -265,9 +267,9 @@ export class SyncService {
                 // NO recurring pattern - this is a single event
               });
 
-              // Only create ONE future event, then break
-              break;
+              eventsCreated++;
             }
+            console.log(`[Sync] Total lunar birthday events created: ${eventsCreated}`);
           } else {
             // For date-based birthdays, use yearly recurrence (date is the same every year)
             let year = currentYear;
