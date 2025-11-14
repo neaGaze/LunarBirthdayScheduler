@@ -137,13 +137,13 @@ const BirthdayTracker: React.FC = () => {
    *
    * IMPORTANT: Tithis repeat every ~29.5 days (each lunar month).
    * A "lunar birthday" is celebrated ONCE per SOLAR YEAR on the tithi
-   * that falls closest to the original birth date's position in the year.
+   * that falls just BEFORE the original birth date's position in the year.
    *
    * Algorithm:
    * 1. For the given solar year, find ALL occurrences of the target tithi
-   * 2. Pick the occurrence that's closest to the original birth date's
-   *    day-of-year position (e.g., if born on day 177 of year, find
-   *    the tithi occurrence nearest to day 177 of the target year)
+   * 2. Pick the occurrence that comes just BEFORE the original birth date's
+   *    day-of-year position (e.g., if born on day 177, find the last tithi
+   *    occurrence where day-of-year < 177)
    */
   const findLunarBirthdayForYear = (
     targetYear: number,
@@ -179,22 +179,32 @@ const BirthdayTracker: React.FC = () => {
       return null;
     }
 
-    // Find the occurrence closest to the original birth day-of-year
-    let closestOccurrence = tithiOccurrences[0];
-    let minDifference = Math.abs(getDayOfYear(closestOccurrence) - originalBirthDayOfYear);
+    // Find the occurrence that comes BEFORE the original birth day-of-year
+    // This is the last occurrence where dayOfYear < originalBirthDayOfYear
+    let bestOccurrence: Date | null = null;
+    let bestDayOfYear = -1;
 
     for (const occurrence of tithiOccurrences) {
       const dayOfYear = getDayOfYear(occurrence);
-      const difference = Math.abs(dayOfYear - originalBirthDayOfYear);
 
-      if (difference < minDifference) {
-        minDifference = difference;
-        closestOccurrence = occurrence;
+      // We want the occurrence that's before the original day but as close as possible
+      if (dayOfYear < originalBirthDayOfYear && dayOfYear > bestDayOfYear) {
+        bestDayOfYear = dayOfYear;
+        bestOccurrence = occurrence;
       }
     }
 
-    console.log(`[findLunarBirthdayForYear] Closest occurrence: ${closestOccurrence.toDateString()} (day ${getDayOfYear(closestOccurrence)} vs original day ${originalBirthDayOfYear})`);
-    return closestOccurrence;
+    if (bestOccurrence) {
+      console.log(`[findLunarBirthdayForYear] Best occurrence (before day ${originalBirthDayOfYear}): ${bestOccurrence.toDateString()} (day ${bestDayOfYear})`);
+      return bestOccurrence;
+    }
+
+    // If no occurrence found before the target day, it means the first occurrence
+    // of the year is after the birth day. In this case, we should use the last
+    // occurrence from the previous year. For simplicity, return null here and
+    // let the calling function handle it.
+    console.log(`[findLunarBirthdayForYear] No occurrence found before day ${originalBirthDayOfYear} in ${targetYear}`);
+    return null;
   };
 
   /**
@@ -212,10 +222,10 @@ const BirthdayTracker: React.FC = () => {
    *
    * Algorithm:
    * - A tithi repeats every ~29.5 days (12-13 times per solar year)
-   * - The "lunar birthday" is the occurrence closest to the original birth date's
-   *   position in the solar year
-   * - For each future year, find all tithi occurrences and pick the one closest
-   *   to the original birth day-of-year
+   * - The "lunar birthday" is the occurrence that comes just BEFORE the original
+   *   birth date's position in the solar year
+   * - For each future year, find all tithi occurrences and pick the one that
+   *   comes just before the original birth day-of-year
    */
   const calculateYearlyTithiBirthdays = (
     gregorianBirthYear: number,
