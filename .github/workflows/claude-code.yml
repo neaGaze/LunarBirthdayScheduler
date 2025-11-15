@@ -1,0 +1,21 @@
+name: Claude Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: 'Arguments'
+        required: true
+
+jobs:
+  claude-code:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: ${{ github.event.inputs.args }}
