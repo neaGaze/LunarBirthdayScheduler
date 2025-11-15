@@ -1,19 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import './Settings.css';
 
+const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
+
 const Settings: React.FC = () => {
   const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays } = useApp();
-  const [syncConfig, setSyncConfig] = useState({
-    calendarId: 'primary',
-    syncFestivals: true,
-    syncCustomEvents: true,
-    syncBirthdays: true,
-    daysInAdvance: 90,
-    maxBirthdaysToSync: 3,
+
+  // Load initial state from localStorage or use defaults
+  const [syncConfig, setSyncConfig] = useState(() => {
+    const stored = localStorage.getItem(SYNC_CONFIG_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse stored sync config:', e);
+      }
+    }
+    return {
+      calendarId: 'primary',
+      syncFestivals: true,
+      syncCustomEvents: true,
+      syncBirthdays: true,
+      daysInAdvance: 90,
+      maxBirthdaysToSync: 3,
+    };
   });
 
   const [activeTab, setActiveTab] = useState<'sync' | 'settings' | 'about'>('sync');
+
+  // Save sync config to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(syncConfig));
+  }, [syncConfig]);
 
   const handleSyncConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
