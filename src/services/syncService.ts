@@ -254,7 +254,7 @@ export class SyncService {
 
               events.push({
                 id: eventId,
-                title: `${birthday.name}'s Birthday`,
+                title: `${birthday.name}'s LUNAR BIRTHDAY`,
                 nepaliDate: nepaliDate,
                 gregorianDate,
                 description: description,
@@ -294,7 +294,7 @@ export class SyncService {
 
             events.push({
               id: birthday.id,
-              title: `${birthday.name}'s Birthday`,
+              title: `${birthday.name}'s BIRTHDAY`,
               nepaliDate: nepaliDate,
               gregorianDate,
               description: description,
