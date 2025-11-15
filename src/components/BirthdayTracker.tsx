@@ -611,54 +611,6 @@ const BirthdayTracker: React.FC = () => {
               </p>
             </div>
 
-            {/* Show preview of next tithi occurrences */}
-            {saveBirthdayMode === 'tithi' && formData.tithiNumber > 0 && (
-              <div className="form-section">
-                <h4>📅 Next 3 Lunar Birthday Occurrences</h4>
-                <p className="form-hint">
-                  Based on your birth date ({formData.gregorianMonth}/{formData.gregorianDay}/{formData.gregorianYear}),
-                  your lunar birthday ({TITHI_NAMES[formData.tithiNumber - 1]}) will occur on these dates:
-                </p>
-                <div style={{
-                  backgroundColor: '#f5f5f5',
-                  padding: '15px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd'
-                }}>
-                  {(() => {
-                    const nextDates = getNextThreeYearsTithiDates(formData.tithiNumber);
-
-                    if (nextDates.length === 0) {
-                      return <p style={{ color: '#666' }}>No future occurrences found.</p>;
-                    }
-
-                    return (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {nextDates.map((date, index) => (
-                          <li key={index} style={{
-                            padding: '10px 0',
-                            borderBottom: index < nextDates.length - 1 ? '1px solid #e0e0e0' : 'none'
-                          }}>
-                            <strong>Occurrence {index + 1}:</strong> {date.toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              weekday: 'long'
-                            })}
-                            {index > 0 && (
-                              <div style={{ fontSize: '0.9em', color: '#666', marginTop: '4px' }}>
-                                (≈ {Math.round((nextDates[index].getTime() - nextDates[index - 1].getTime()) / (1000 * 60 * 60 * 24))} days from previous)
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
             <div className="form-group checkbox">
               <label htmlFor="reminderEnabled">
                 <input
