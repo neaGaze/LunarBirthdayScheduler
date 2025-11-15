@@ -10,6 +10,7 @@ const Settings: React.FC = () => {
     syncCustomEvents: true,
     syncBirthdays: true,
     daysInAdvance: 90,
+    maxBirthdaysToSync: 3,
   });
 
   const [activeTab, setActiveTab] = useState<'sync' | 'settings' | 'about'>('sync');
@@ -23,7 +24,7 @@ const Settings: React.FC = () => {
       [name]:
         type === 'checkbox'
           ? checked
-          : name === 'daysInAdvance'
+          : name === 'daysInAdvance' || name === 'maxBirthdaysToSync'
             ? parseInt(value)
             : value,
     });
@@ -150,7 +151,7 @@ const Settings: React.FC = () => {
             <h4>Advanced Settings</h4>
 
             <div className="form-group">
-              <label htmlFor="daysInAdvance">Sync events up to</label>
+              <label htmlFor="daysInAdvance">Sync festivals up to</label>
               <div className="input-group">
                 <input
                   type="number"
@@ -163,6 +164,23 @@ const Settings: React.FC = () => {
                 />
                 <span>days in advance</span>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="maxBirthdaysToSync">Lunar birthday occurrences</label>
+              <div className="input-group">
+                <input
+                  type="number"
+                  id="maxBirthdaysToSync"
+                  name="maxBirthdaysToSync"
+                  value={syncConfig.maxBirthdaysToSync}
+                  onChange={handleSyncConfigChange}
+                  min="1"
+                  max="10"
+                />
+                <span>future occurrences</span>
+              </div>
+              <p className="field-desc">Number of future lunar birthday events to sync per person</p>
             </div>
 
             <div className="form-group">

@@ -14,6 +14,7 @@ export interface SyncConfig {
   syncCustomEvents: boolean;
   syncBirthdays: boolean;
   daysInAdvance: number; // Sync events N days in advance
+  maxBirthdaysToSync: number; // Max future lunar birthday occurrences to sync
 }
 
 export interface SyncResult {
@@ -218,10 +219,9 @@ export class SyncService {
             );
             const originalBirthDayOfYear = this.getDayOfYear(originalBirthDate);
 
-            // Create events for the next 3 future occurrences
+            // Create events for the next N future occurrences (from config)
             let eventsCreated = 0;
-            let maxBirthdaysToSync = 3;
-            for (let yearOffset = 0; yearOffset < 10 && eventsCreated < maxBirthdaysToSync; yearOffset++) {
+            for (let yearOffset = 0; yearOffset < 10 && eventsCreated < config.maxBirthdaysToSync; yearOffset++) {
               const targetYear = currentYear + yearOffset;
 
               const gregorianDate = this.findTithiBirthdayForYear(
@@ -239,7 +239,7 @@ export class SyncService {
                 continue;
               }
 
-              console.log(`[Sync] Creating event ${eventsCreated + 1}/${maxBirthdaysToSync} for sync`);
+              console.log(`[Sync] Creating event ${eventsCreated + 1}/${config.maxBirthdaysToSync} for sync`);
 
               // Convert the calculated Gregorian date to Nepali date
               const nepaliDate = gregorianToNepali(gregorianDate);
