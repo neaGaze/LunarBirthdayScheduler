@@ -4,7 +4,7 @@ import { nepaliToGregorian, gregorianToNepali, calculateTithi, TITHI_NAMES } fro
 import './BirthdayTracker.css';
 
 const BirthdayTracker: React.FC = () => {
-  const { addBirthday, birthdays } = useApp();
+  const { addBirthday, birthdays, deleteBirthday } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [dateInputMode, setDateInputMode] = useState<'nepali' | 'gregorian'>('gregorian');
   const [saveBirthdayMode, setSaveBirthdayMode] = useState<'date' | 'tithi'>('date');
@@ -130,6 +130,22 @@ const BirthdayTracker: React.FC = () => {
     const today = new Date();
     const birthDate = new Date(new Date().getFullYear(), gregorianDate.month - 1, gregorianDate.day);
     return birthDate >= today;
+  };
+
+  const handleDeleteBirthday = async (id: string, name: string) => {
+    // Check if this birthday has sync mappings
+    const syncMappings = localStorage.getItem('nepali_calendar_sync_mappings');
+    const hasSyncMappings = syncMappings ? JSON.parse(syncMappings)[id] !== undefined : false;
+    console.log(`[Delete] Birthday ${id} has sync mappings:`, hasSyncMappings);
+
+    if (window.confirm(`Delete ${name}'s birthday? This removes it from Google Calendar if synced.`)) {
+      try {
+        await deleteBirthday(id);
+      } catch (error) {
+        console.error('Error deleting birthday:', error);
+        alert('Failed to delete birthday. Please try again.');
+      }
+    }
   };
 
   /**
@@ -378,6 +394,13 @@ const BirthdayTracker: React.FC = () => {
                     {birthday.gregorianBirthDate.year} (Age: {getAge(birthday.gregorianBirthDate.year)})
                   </p>
                 </div>
+                <button
+                  className="btn-delete-birthday"
+                  onClick={() => handleDeleteBirthday(birthday.id, birthday.name)}
+                  title="Delete birthday"
+                >
+                  🗑️
+                </button>
                 {birthday.reminder?.enabled && <div className="reminder-badge">🔔 Reminder on</div>}
                 {birthday.isTithiBased && <div className="tithi-badge">🌙 Tithi-based</div>}
               </li>

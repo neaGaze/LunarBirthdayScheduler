@@ -181,16 +181,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const deleteEvent = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (nepaliEventService) {
         nepaliEventService.deleteEvent(id);
         const newEvents = events.filter((e) => e.id !== id);
         setEvents(newEvents);
         localStorage.setItem('nepali_events', JSON.stringify(newEvents));
+
+        // Delete from Google Calendar if synced
+        if (syncService && googleCalendarService) {
+          try {
+            const googleEventId = syncService.getSyncedGoogleEventId(id);
+            if (googleEventId) {
+              const calendarId = localStorage.getItem('nepali_calendar_id');
+              if (calendarId) {
+                await googleCalendarService.deleteEvent(calendarId, googleEventId);
+                showNotification('success', 'Event deleted from Google Calendar');
+              }
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Failed to delete from Google Calendar:', errorMessage);
+            showNotification('error', 'Event deleted locally but not from Google Calendar');
+          }
+        }
+
         showNotification('success', 'Event deleted successfully');
       }
     },
-    [events, nepaliEventService, showNotification]
+    [events, nepaliEventService, syncService, googleCalendarService, showNotification]
   );
 
   const addBirthday = useCallback(
@@ -224,31 +243,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteBirthday = useCallback(
     async (id: string) => {
       if (nepaliEventService) {
+        console.log('========== DELETE BIRTHDAY START ==========');
+        console.log('Birthday ID:', id);
+        console.log('syncService exists:', !!syncService);
+        console.log('googleCalendarService exists:', !!googleCalendarService);
+
         nepaliEventService.deleteLunarBirthday(id);
         const newBirthdays = birthdays.filter((b) => b.id !== id);
         setBirthdays(newBirthdays);
         localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
 
-        // Delete from Google Calendar if synced
+        // Delete from Google Calendar if synced (handles multiple events for tithi birthdays)
         if (syncService && googleCalendarService) {
           try {
-            const googleEventId = syncService.getSyncedGoogleEventId(id);
-            if (googleEventId) {
-              // Get the calendar ID from localStorage (set during sync)
-              const calendarId = localStorage.getItem('nepali_calendar_id');
-              if (calendarId) {
+            const calendarId = localStorage.getItem('nepali_calendar_id');
+            console.log('Calendar ID from localStorage:', calendarId);
+
+            if (calendarId) {
+              let deletedCount = 0;
+
+              // Try deleting the base event
+              const googleEventId = syncService.getSyncedGoogleEventId(id);
+              console.log(`Base event ID (${id}) -> Google ID:`, googleEventId);
+
+              if (googleEventId) {
+                console.log('Deleting base event from Google Calendar...');
                 await googleCalendarService.deleteEvent(calendarId, googleEventId);
-                showNotification('success', 'Birthday deleted from Google Calendar');
+                deletedCount++;
+                console.log('Base event deleted successfully');
               }
+
+              // For tithi birthdays, also delete year-specific events (id_2026, id_2027, etc.)
+              const currentYear = new Date().getFullYear();
+              console.log(`Checking year-specific events from ${currentYear} to ${currentYear + 9}`);
+
+              for (let yearOffset = 0; yearOffset < 10; yearOffset++) {
+                const yearEventId = `${id}_${currentYear + yearOffset}`;
+                const googleYearEventId = syncService.getSyncedGoogleEventId(yearEventId);
+                console.log(`  Year ${currentYear + yearOffset} (${yearEventId}) -> Google ID:`, googleYearEventId);
+
+                if (googleYearEventId) {
+                  console.log(`  Deleting year ${currentYear + yearOffset} event...`);
+                  await googleCalendarService.deleteEvent(calendarId, googleYearEventId);
+                  deletedCount++;
+                  console.log(`  Deleted successfully`);
+                }
+              }
+
+              console.log(`Total events deleted from Google Calendar: ${deletedCount}`);
+
+              if (deletedCount > 0) {
+                showNotification('success', `Deleted ${deletedCount} event(s) from Google Calendar`);
+              } else {
+                console.log('No events found in sync mappings to delete');
+                showNotification('info', 'Birthday deleted locally (not synced to Google Calendar)');
+              }
+            } else {
+              console.log('No calendar ID found in localStorage');
+              showNotification('info', 'Birthday deleted locally (no calendar ID)');
             }
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            console.error('Failed to delete birthday from Google Calendar:', errorMessage);
-            showNotification('error', 'Birthday deleted locally but could not delete from Google Calendar');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Failed to delete from Google Calendar:', errorMessage);
+            showNotification('error', 'Birthday deleted locally but not from Google Calendar');
           }
+        } else {
+          console.log('syncService or googleCalendarService not available');
+          showNotification('info', 'Birthday deleted locally (not authenticated)');
         }
 
         showNotification('success', 'Birthday deleted successfully');
+        console.log('========== DELETE BIRTHDAY END ==========');
       }
     },
     [birthdays, nepaliEventService, syncService, googleCalendarService, showNotification]
@@ -283,22 +348,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         });
 
-        // Clear the service's birthdays
+        // Sync birthdays: Instead of deleting and re-adding (which creates new IDs),
+        // directly update the service to match the current state
+        console.log('[Sync] Preserving birthday IDs during sync...');
+        console.log('[Sync] State birthday IDs:', birthdays.map(b => b.id));
         const currentBirthdays = nepaliEventService.getLunarBirthdays();
+        const currentBirthdayIds = new Set(currentBirthdays.map(b => b.id));
+        const stateBirthdayIds = new Set(birthdays.map(b => b.id));
+
+        // Remove birthdays that are in service but not in state
         currentBirthdays.forEach(birthday => {
-          nepaliEventService.deleteLunarBirthday(birthday.id);
+          if (!stateBirthdayIds.has(birthday.id)) {
+            nepaliEventService.deleteLunarBirthday(birthday.id);
+          }
         });
 
-        // Add all birthdays from state to the service
+        // Add or update birthdays from state
         birthdays.forEach(birthday => {
-          nepaliEventService.addLunarBirthday({
-            name: birthday.name,
-            nepaliDate: birthday.nepaliDate,
-            gregorianBirthDate: birthday.gregorianBirthDate,
-            reminder: birthday.reminder,
-            isTithiBased: birthday.isTithiBased,
-            tithiNumber: birthday.tithiNumber
-          });
+          if (currentBirthdayIds.has(birthday.id)) {
+            // Update existing birthday
+            nepaliEventService.updateLunarBirthday(birthday.id, {
+              name: birthday.name,
+              nepaliDate: birthday.nepaliDate,
+              gregorianBirthDate: birthday.gregorianBirthDate,
+              reminder: birthday.reminder,
+              isTithiBased: birthday.isTithiBased,
+              tithiNumber: birthday.tithiNumber
+            });
+          } else {
+            // Add new birthday - but we need to preserve the ID!
+            // This is a workaround: we'll use the service's internal map directly
+            const birthdayWithId = {
+              id: birthday.id,
+              name: birthday.name,
+              nepaliDate: birthday.nepaliDate,
+              gregorianBirthDate: birthday.gregorianBirthDate,
+              reminder: birthday.reminder,
+              isTithiBased: birthday.isTithiBased,
+              tithiNumber: birthday.tithiNumber
+            };
+            // Access the internal map (hacky but necessary to preserve IDs)
+            (nepaliEventService as any).lunarBirthdays.set(birthday.id, birthdayWithId);
+          }
         });
 
         const result = await syncService.syncToGoogleCalendar(config);

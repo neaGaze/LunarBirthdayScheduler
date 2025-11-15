@@ -315,12 +315,15 @@ export class SyncService {
       // Sync each event
       for (const event of events) {
         try {
+          console.log(`[Sync] Processing event: ${event.id} - ${event.title}`);
           const googleEvent = this.nepaliEventService.convertToGoogleCalendarEvent(event);
           const existingGoogleId = this.syncedEventIds.get(event.id);
+          console.log(`[Sync] Existing Google ID for ${event.id}:`, existingGoogleId);
 
           let createdEvent;
           if (existingGoogleId) {
             // Update existing event
+            console.log(`[Sync] Updating existing event...`);
             createdEvent = await this.googleCalendarService.updateEvent(
               config.calendarId,
               existingGoogleId,
@@ -328,13 +331,16 @@ export class SyncService {
             );
           } else {
             // Create new event
+            console.log(`[Sync] Creating new event...`);
             createdEvent = await this.googleCalendarService.createEvent(
               config.calendarId,
               googleEvent
             );
+            console.log(`[Sync] Created event with Google ID:`, createdEvent.id);
 
             if (createdEvent.id) {
               this.syncedEventIds.set(event.id, createdEvent.id);
+              console.log(`[Sync] Saved mapping: ${event.id} -> ${createdEvent.id}`);
             }
           }
 
@@ -344,10 +350,13 @@ export class SyncService {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error occurred';
           result.errors.push(`Failed to sync event "${event.title}": ${errorMessage}`);
+          console.error(`[Sync] Error syncing event ${event.id}:`, errorMessage);
         }
       }
 
       // Save mappings to localStorage after syncing
+      console.log('[Sync] Saving mappings to localStorage...');
+      console.log('[Sync] Current mappings:', this.getSyncedEventMappings());
       this.saveSyncMappings();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
