@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { migrateToSupabase, isMigrationDone, type MigrationProgress } from '../utils/migrateToSupabase';
 import './Settings.css';
 
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
@@ -28,6 +29,9 @@ const Settings: React.FC = () => {
   });
 
   const [activeTab, setActiveTab] = useState<'sync' | 'settings' | 'about'>('sync');
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState<MigrationProgress | null>(null);
+  const [migrationDone, setMigrationDone] = useState(isMigrationDone());
 
   // Save sync config to localStorage whenever it changes
   useEffect(() => {
@@ -51,6 +55,21 @@ const Settings: React.FC = () => {
 
   const handleSync = async () => {
     await syncEvents(syncConfig);
+  };
+
+  const handleMigrate = async () => {
+    setIsMigrating(true);
+    setMigrationProgress(null);
+
+    const result = await migrateToSupabase((progress) => {
+      setMigrationProgress(progress);
+    });
+
+    if (result.success) {
+      setMigrationDone(true);
+    }
+
+    setIsMigrating(false);
   };
 
   const getEventStats = () => {
@@ -310,6 +329,67 @@ const Settings: React.FC = () => {
 
           <div className="settings-group">
             <h4>Data</h4>
+
+            {!migrationDone && (
+              <div className="setting-item" style={{ borderLeft: '4px solid #4CAF50', paddingLeft: '16px', backgroundColor: '#f0f8f0' }}>
+                <div className="setting-info">
+                  <h5>☁️ Migrate to Cloud Storage</h5>
+                  <p>Move your events and birthdays to Supabase for cloud sync and backup</p>
+                  {migrationProgress && (
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ fontSize: '0.9em', color: '#666' }}>{migrationProgress.message}</p>
+                      {migrationProgress.total > 0 && (
+                        <div style={{
+                          width: '100%',
+                          height: '8px',
+                          backgroundColor: '#ddd',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                          marginTop: '8px'
+                        }}>
+                          <div style={{
+                            width: `${(migrationProgress.current / migrationProgress.total) * 100}%`,
+                            height: '100%',
+                            backgroundColor: '#4CAF50',
+                            transition: 'width 0.3s'
+                          }}></div>
+                        </div>
+                      )}
+                      {migrationProgress.status === 'error' && migrationProgress.errorDetails && (
+                        <p style={{ color: 'red', fontSize: '0.85em', marginTop: '8px' }}>
+                          Error: {migrationProgress.errorDetails}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleMigrate}
+                  disabled={isMigrating}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {isMigrating ? (
+                    <>
+                      <span className="spinner"></span>
+                      Migrating...
+                    </>
+                  ) : (
+                    '→ Migrate Now'
+                  )}
+                </button>
+              </div>
+            )}
+
+            {migrationDone && (
+              <div className="setting-item" style={{ borderLeft: '4px solid #4CAF50', paddingLeft: '16px', backgroundColor: '#e8f5e9' }}>
+                <div className="setting-info">
+                  <h5>✅ Cloud Storage Enabled</h5>
+                  <p>Your data is synced to Supabase and backed up in the cloud</p>
+                </div>
+              </div>
+            )}
+
             <div className="setting-item">
               <div className="setting-info">
                 <h5>Export Data</h5>
