@@ -5,8 +5,10 @@ Migrate Nepali Calendar app from localStorage-only to Supabase database while ma
 
 ## Current Status
 - **Completed:** Phase 1 (Foundation Setup)
-- **In Progress:** Phase 2 (Dual-Write System)
-- **Pending:** Phases 3-6
+- **Completed:** Phase 2 (Dual-Write System)
+- **Completed:** Phase 3 (Data Migration Tool)
+- **In Progress:** Phase 4 (Switch to Supabase Reads)
+- **Pending:** Phases 5-6
 
 ## Phase 1: Foundation Setup ✅ COMPLETED
 - [x] Create Supabase project and get credentials
@@ -30,23 +32,23 @@ Migrate Nepali Calendar app from localStorage-only to Supabase database while ma
 
 **Note:** Dual-write only activates after Supabase auth. Currently, birthdays/events only sync to localStorage until user authenticates with Supabase.
 
-## Phase 3: Data Migration Tool 🔄 NEXT
+## Phase 3: Data Migration Tool ✅ COMPLETED
 Goal: Move existing localStorage data to Supabase
 
-- [ ] Create migration utility (src/utils/migrateToSupabase.ts)
-  - [ ] Read all localStorage keys
-  - [ ] Transform data to match DB schema
-  - [ ] Batch upload to Supabase
-  - [ ] Verify migration success
-- [ ] Add migration UI in Settings
-  - [ ] "Migrate to Cloud Storage" button
-  - [ ] Progress indicator
-  - [ ] Success/error messages
-- [ ] Implement migration logic
-  - [ ] Check if user already migrated (flag in Supabase)
-  - [ ] One-time migration per user
-  - [ ] Keep localStorage as backup during migration
-- [ ] Test migration with real localStorage data
+- [x] Create migration utility (src/utils/migrateToSupabase.ts)
+  - [x] Read all localStorage keys (nepali_events, nepali_birthdays, sync_mappings)
+  - [x] Transform data to match DB schema using conversion functions
+  - [x] Batch upload to Supabase with error handling
+  - [x] Verify migration success with detailed progress reporting
+- [x] Add migration UI in Settings
+  - [x] "Migrate to Cloud Storage" button with cloud icon
+  - [x] Progress indicator showing current/total items
+  - [x] Success/error messages with detailed error list
+- [x] Implement migration logic
+  - [x] Check if user already migrated (localStorage flag)
+  - [x] One-time migration per user (prevents re-migration)
+  - [x] Keep localStorage as backup during migration
+- [x] Test migration with mock localStorage data (validation passed)
 
 ## Phase 4: Switch to Supabase Reads 📖
 Goal: Read from Supabase, write to both (validation phase)
