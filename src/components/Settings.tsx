@@ -9,6 +9,7 @@ import {
   restoreDataFromImport,
   type ExportData
 } from '../utils/exportData';
+import * as SupabaseService from '../services/supabaseService';
 import './Settings.css';
 
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
@@ -43,6 +44,7 @@ const Settings: React.FC = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isSigningInSupabase, setIsSigningInSupabase] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Save sync config to localStorage whenever it changes
@@ -142,6 +144,19 @@ const Settings: React.FC = () => {
   };
 
   const exportSummary = getExportSummary();
+
+  const handleSupabaseSignIn = async () => {
+    setIsSigningInSupabase(true);
+    try {
+      await SupabaseService.signInWithGoogle();
+      showNotification('success', 'Signing in with Supabase... You will be redirected.');
+    } catch (error) {
+      console.error('Supabase sign-in error:', error);
+      showNotification('error', `Sign-in failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsSigningInSupabase(false);
+    }
+  };
 
   const getEventStats = () => {
     let totalFestivals = festivals.length;
@@ -406,6 +421,11 @@ const Settings: React.FC = () => {
                 <div className="setting-info">
                   <h5>☁️ Migrate to Cloud Storage</h5>
                   <p>Move your events and birthdays to Supabase for cloud sync and backup</p>
+                  {!supabaseUserId && (
+                    <p style={{ fontSize: '0.85em', color: '#d32f2f', marginTop: '8px' }}>
+                      ⚠️ Sign in with Supabase first to enable migration
+                    </p>
+                  )}
                   {migrationProgress && (
                     <div style={{ marginTop: '12px' }}>
                       <p style={{ fontSize: '0.9em', color: '#666' }}>{migrationProgress.message}</p>
@@ -434,21 +454,39 @@ const Settings: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleMigrate}
-                  disabled={isMigrating}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  {isMigrating ? (
-                    <>
-                      <span className="spinner"></span>
-                      Migrating...
-                    </>
-                  ) : (
-                    '→ Migrate Now'
-                  )}
-                </button>
+                {!supabaseUserId ? (
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSupabaseSignIn}
+                    disabled={isSigningInSupabase}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {isSigningInSupabase ? (
+                      <>
+                        <span className="spinner"></span>
+                        Signing in...
+                      </>
+                    ) : (
+                      '🔐 Sign in with Supabase'
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleMigrate}
+                    disabled={isMigrating}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {isMigrating ? (
+                      <>
+                        <span className="spinner"></span>
+                        Migrating...
+                      </>
+                    ) : (
+                      '→ Migrate Now'
+                    )}
+                  </button>
+                )}
               </div>
             )}
 

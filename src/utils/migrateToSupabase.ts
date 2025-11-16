@@ -266,11 +266,15 @@ export async function migrateToSupabase(
     // Get authenticated user
     let currentUserId = userId;
     if (!currentUserId) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error('Not authenticated. Please sign in with Google first, then try migration again.');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        currentUserId = session.user.id;
+      } else {
+        // Try to sign in with Supabase anonymously or via browser redirect
+        // For now, require explicit userId to be passed in
+        throw new Error('Migration requires Supabase authentication. Please log in first by clicking the "Sign in with Supabase" button in Settings.');
       }
-      currentUserId = user.id;
     }
 
     if (!currentUserId) {
