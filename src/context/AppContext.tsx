@@ -6,6 +6,7 @@ import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEvent
 import type { SyncConfig } from '../services/syncService.js';
 import { supabase } from '../services/supabaseClient';
 import * as SupabaseService from '../services/supabaseService';
+import { getOrCreateUserAdmin } from '../services/supabaseAdmin';
 
 interface AppContextType {
   // Authentication
@@ -524,9 +525,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.log('[Supabase] Using existing device user ID:', deviceUserId);
           }
 
-          // Create or get user record in database
+          // Create or get user record in database (using admin bypass for RLS)
           try {
-            const dbUser = await SupabaseService.getOrCreateUser(
+            const dbUser = await getOrCreateUserAdmin(
               deviceUserId,
               `${deviceUserId}@app.local`,
               'Local User'
