@@ -520,7 +520,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setSupabaseUserId(dbUser.id);
           console.log('[Supabase Auth] User ID set:', dbUser.id);
         } else {
-          console.log('[Supabase Auth] No user in session');
+          // No session exists, try anonymous authentication
+          console.log('[Supabase Auth] No session, attempting anonymous auth...');
+          try {
+            const { data, error } = await supabase.auth.signInAnonymously();
+            if (error) {
+              console.warn('[Supabase Auth] Anonymous sign-in failed:', error.message);
+            } else if (data.user) {
+              console.log('[Supabase Auth] Anonymous auth success, user ID:', data.user.id);
+              // Create anonymous user in database
+              const dbUser = await SupabaseService.getOrCreateUser(
+                data.user.id,
+                'anonymous@app.local',
+                'Anonymous User'
+              );
+              setSupabaseUserId(dbUser.id);
+              console.log('[Supabase Auth] Anonymous user created:', dbUser.id);
+            }
+          } catch (anonError) {
+            console.error('[Supabase Auth] Error with anonymous auth:', anonError);
+          }
         }
       } catch (error) {
         console.error('[Supabase Auth] Error checking auth:', error);
