@@ -500,68 +500,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [syncService, googleCalendarService, nepaliEventService, events, birthdays, showNotification]
   );
 
-  // Check Supabase auth session on mount
+  // Initialize Supabase user ID - use device/browser ID as fallback
   React.useEffect(() => {
-    const checkSupabaseAuth = async () => {
+    const initializeSupabaseUser = async () => {
       try {
+        // First, try to get existing session
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Supabase Auth] Session check:', session ? 'Found session' : 'No session');
 
         if (session?.user) {
-          console.log('[Supabase Auth] User ID:', session.user.id);
-
-          // Get or create user in database
-          const dbUser = await SupabaseService.getOrCreateUser(
-            session.user.id,
-            session.user.email || '',
-            session.user.user_metadata?.full_name
-          );
-
-          setSupabaseUserId(dbUser.id);
-          console.log('[Supabase Auth] User ID set:', dbUser.id);
+          console.log('[Supabase] Using authenticated user:', session.user.id);
+          setSupabaseUserId(session.user.id);
         } else {
-          // No session exists, try anonymous authentication
-          console.log('[Supabase Auth] No session, attempting anonymous auth...');
+          // No auth session, use browser/device identifier
+          console.log('[Supabase] No auth session, using device ID');
+          let deviceUserId = localStorage.getItem('supabase_device_user_id');
+
+          if (!deviceUserId) {
+            // Generate a new device user ID
+            deviceUserId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('supabase_device_user_id', deviceUserId);
+            console.log('[Supabase] Generated new device user ID:', deviceUserId);
+          } else {
+            console.log('[Supabase] Using existing device user ID:', deviceUserId);
+          }
+
+          // Create or get user record in database
           try {
-            const { data, error } = await supabase.auth.signInAnonymously();
-            if (error) {
-              console.warn('[Supabase Auth] Anonymous sign-in failed:', error.message);
-            } else if (data.user) {
-              console.log('[Supabase Auth] Anonymous auth success, user ID:', data.user.id);
-              // Create anonymous user in database
-              const dbUser = await SupabaseService.getOrCreateUser(
-                data.user.id,
-                'anonymous@app.local',
-                'Anonymous User'
-              );
-              setSupabaseUserId(dbUser.id);
-              console.log('[Supabase Auth] Anonymous user created:', dbUser.id);
-            }
-          } catch (anonError) {
-            console.error('[Supabase Auth] Error with anonymous auth:', anonError);
+            const dbUser = await SupabaseService.getOrCreateUser(
+              deviceUserId,
+              `${deviceUserId}@app.local`,
+              'Local User'
+            );
+            setSupabaseUserId(dbUser.id);
+            console.log('[Supabase] Device user set:', dbUser.id);
+          } catch (dbError) {
+            console.error('[Supabase] Error creating/getting device user:', dbError);
+            // Still set the device ID even if DB creation fails
+            setSupabaseUserId(deviceUserId);
           }
         }
       } catch (error) {
-        console.error('[Supabase Auth] Error checking auth:', error);
+        console.error('[Supabase] Error initializing user:', error);
       }
     };
 
-    checkSupabaseAuth();
+    initializeSupabaseUser();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Supabase Auth] State change event:', event);
       if (session?.user) {
-        console.log('[Supabase Auth] Authenticated:', session.user.email);
-        const dbUser = await SupabaseService.getOrCreateUser(
-          session.user.id,
-          session.user.email || '',
-          session.user.user_metadata?.full_name
-        );
-        setSupabaseUserId(dbUser.id);
+        console.log('[Supabase] Authenticated user:', session.user.id);
+        setSupabaseUserId(session.user.id);
       } else {
-        console.log('[Supabase Auth] Logged out');
-        setSupabaseUserId(null);
+        console.log('[Supabase] No authenticated user');
+        // Keep using device ID
       }
     });
 
