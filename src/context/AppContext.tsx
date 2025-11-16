@@ -11,6 +11,7 @@ interface AppContextType {
   // Authentication
   isAuthenticated: boolean;
   user: { email?: string } | null;
+  supabaseUserId: string | null;
   login: () => Promise<void>;
   logout: () => void;
   handleOAuthCallback: (code: string) => Promise<void>;
@@ -608,6 +609,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const value: AppContextType = {
     isAuthenticated,
     user,
+    supabaseUserId,
     login,
     logout,
     handleOAuthCallback,

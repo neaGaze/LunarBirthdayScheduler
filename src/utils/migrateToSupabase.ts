@@ -245,7 +245,8 @@ async function uploadSyncMappings(
  * Migrates all localStorage data to Supabase
  */
 export async function migrateToSupabase(
-  onProgress?: (progress: MigrationProgress) => void
+  onProgress?: (progress: MigrationProgress) => void,
+  userId?: string
 ): Promise<MigrationResult> {
   const updateProgress = (progress: MigrationProgress) => {
     onProgress?.(progress);
@@ -263,12 +264,18 @@ export async function migrateToSupabase(
     }
 
     // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      throw new Error('Not authenticated. Please log in with Supabase first.');
+    let currentUserId = userId;
+    if (!currentUserId) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('Not authenticated. Please sign in with Google first, then try migration again.');
+      }
+      currentUserId = user.id;
     }
 
-    const userId = user.id;
+    if (!currentUserId) {
+      throw new Error('Unable to determine user ID. Please ensure you are logged in.');
+    }
     const errors: string[] = [];
 
     // Step 1: Check and read localStorage
@@ -301,7 +308,7 @@ export async function migrateToSupabase(
       message: 'Uploading events...'
     });
 
-    const eventsResult = await uploadEvents(userId, validEvents, (current, total) => {
+    const eventsResult = await uploadEvents(currentUserId, validEvents, (current, total) => {
       updateProgress({
         status: 'processing',
         step: 'uploading',
@@ -322,7 +329,7 @@ export async function migrateToSupabase(
       message: 'Uploading birthdays...'
     });
 
-    const birthdaysResult = await uploadBirthdays(userId, validBirthdays, (current, total) => {
+    const birthdaysResult = await uploadBirthdays(currentUserId, validBirthdays, (current, total) => {
       updateProgress({
         status: 'processing',
         step: 'uploading',
@@ -343,7 +350,7 @@ export async function migrateToSupabase(
       message: 'Uploading sync mappings...'
     });
 
-    const mappingsResult = await uploadSyncMappings(userId, syncMappings);
+    const mappingsResult = await uploadSyncMappings(currentUserId, syncMappings);
     errors.push(...mappingsResult.errors);
 
     // Mark migration as done

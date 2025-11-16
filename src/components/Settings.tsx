@@ -14,7 +14,7 @@ import './Settings.css';
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
 
 const Settings: React.FC = () => {
-  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays } = useApp();
+  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, showNotification } = useApp();
 
   // Load initial state from localStorage or use defaults
   const [syncConfig, setSyncConfig] = useState(() => {
@@ -70,15 +70,23 @@ const Settings: React.FC = () => {
   };
 
   const handleMigrate = async () => {
+    if (!supabaseUserId) {
+      showNotification('error', 'You need to be logged in with Supabase to migrate. Please sign in first.');
+      return;
+    }
+
     setIsMigrating(true);
     setMigrationProgress(null);
 
     const result = await migrateToSupabase((progress) => {
       setMigrationProgress(progress);
-    });
+    }, supabaseUserId);
 
     if (result.success) {
       setMigrationDone(true);
+      showNotification('success', result.message);
+    } else {
+      showNotification('error', result.message);
     }
 
     setIsMigrating(false);

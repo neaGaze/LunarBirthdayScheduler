@@ -1,0 +1,98 @@
+{
+  "version": "1.0.0",
+  "exportedAt": "2025-11-16T05:15:24.626Z",
+  "data": {
+    "events": [],
+    "birthdays": [
+      {
+        "name": "Nigesh Shakya",
+        "nepaliDate": {
+          "year": 2048,
+          "month": 3,
+          "day": 12
+        },
+        "gregorianBirthDate": {
+          "year": 1991,
+          "month": 6,
+          "day": 26
+        },
+        "reminder": {
+          "enabled": true,
+          "minutesBefore": 1440
+        },
+        "isTithiBased": false,
+        "tithiNumber": 15,
+        "id": "birthday_1763180756143"
+      },
+      {
+        "name": "Saneil Shakya",
+        "nepaliDate": {
+          "year": 2081,
+          "month": 2,
+          "day": 10
+        },
+        "gregorianBirthDate": {
+          "year": 2024,
+          "month": 5,
+          "day": 23
+        },
+        "reminder": {
+          "enabled": true,
+          "minutesBefore": 1440
+        },
+        "isTithiBased": true,
+        "tithiNumber": 15,
+        "id": "birthday_1763181036573"
+      },
+      {
+        "name": "Niroj Shakya",
+        "nepaliDate": {
+          "year": 2082,
+          "month": 7,
+          "day": 15
+        },
+        "gregorianBirthDate": {
+          "year": 2025,
+          "month": 11,
+          "day": 1
+        },
+        "reminder": {
+          "enabled": true,
+          "minutesBefore": 1440
+        },
+        "isTithiBased": true,
+        "tithiNumber": 11,
+        "id": "birthday_1763182167662"
+      }
+    ],
+    "syncMappings": {
+      "birthday_1763179311605_2026": "qv1e548bj85kgi274r1ci0hjd8",
+      "birthday_1763179311605_2027": "vag88s1k973oe4lf3ofqpcf758",
+      "birthday_1763179311605_2028": "2i7d531uchrui3ph85ghagibec",
+      "birthday_1763180392893_2026": "6phi6j20j7kd7tvoas9907m2kk",
+      "birthday_1763180392893_2027": "280kl60oehdj737v2md45gpndo",
+      "birthday_1763180392893_2028": "177u5bmnpipputjni762isnb4o",
+      "birthday_1763180756143": "6on9nil4r8qobo0m27ldkp7pos",
+      "birthday_1763181036573_2026": "gndkmvu9up534dedtrr5aggpc0",
+      "birthday_1763181036573_2027": "gbsc6i914si10kk6vcvd88migk",
+      "birthday_1763181036573_2028": "1nonbomdfi0hhunvn0e64v8bas",
+      "birthday_1763182167662_2026": "9b4asgtcdp8ab7u0sliid31fuc",
+      "birthday_1763182167662_2027": "79uc8ausjrq7bvid3glsh56630",
+      "birthday_1763182167662_2028": "12km76f9ir8938eorb4bkjjk0k",
+      "birthday_1763181036573_2029": "6lql5csvu6431hp2r788k66a10",
+      "birthday_1763182167662_2029": "j71qrtdhg0r2k3f7l55a3c4lio",
+      "birthday_1763269022784_2026": "de9j42cgl9ibtmfh356tnlj5ig",
+      "birthday_1763269022784_2027": "hmi7424daps70qah4ncfcd7gsg",
+      "birthday_1763269022784_2028": "dsgghj9bgo78mutnbnuinmmrqk",
+      "birthday_1763269022784_2029": "odii551dkm5s68o1co0qrsuofg"
+    },
+    "syncConfig": {
+      "calendarId": "primary",
+      "syncFestivals": true,
+      "syncCustomEvents": true,
+      "syncBirthdays": true,
+      "daysInAdvance": 90,
+      "maxBirthdaysToSync": 4
+    }
+  }
+}
