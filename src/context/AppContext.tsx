@@ -4,6 +4,8 @@ import { NepaliEventService } from '../services/nepaliEventService.js';
 import { SyncService } from '../services/syncService.js';
 import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEventService.js';
 import type { SyncConfig } from '../services/syncService.js';
+import { supabase } from '../services/supabaseClient';
+import * as SupabaseService from '../services/supabaseService';
 
 interface AppContextType {
   // Authentication
@@ -48,6 +50,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ email?: string } | null>(null);
+  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [googleCalendarService, setGoogleCalendarService] =
     useState<GoogleCalendarService | null>(null);
   const [nepaliEventService] = useState(() => new NepaliEventService());
@@ -153,31 +156,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [showNotification]);
 
   const addEvent = useCallback(
-    (event: Omit<NepaliCalendarEvent, 'id' | 'gregorianDate'>) => {
+    async (event: Omit<NepaliCalendarEvent, 'id' | 'gregorianDate'>) => {
       if (nepaliEventService) {
         const newEvent = nepaliEventService.addEvent(event);
         const updated = [...events, newEvent];
         setEvents(updated);
+
+        // Write to localStorage (always)
         localStorage.setItem('nepali_events', JSON.stringify(updated));
+
+        // Write to Supabase (if authenticated)
+        if (supabaseUserId) {
+          try {
+            await SupabaseService.createEvent(newEvent, supabaseUserId);
+            console.log('Event saved to Supabase:', newEvent.id);
+          } catch (error) {
+            console.error('Failed to save event to Supabase:', error);
+            // Don't show error to user, localStorage is primary for now
+          }
+        }
+
         showNotification('success', `Event "${event.title}" created successfully`);
       }
     },
-    [events, nepaliEventService, showNotification]
+    [events, nepaliEventService, supabaseUserId, showNotification]
   );
 
   const updateEvent = useCallback(
-    (id: string, updates: Partial<NepaliCalendarEvent>) => {
+    async (id: string, updates: Partial<NepaliCalendarEvent>) => {
       if (nepaliEventService) {
         const updated = nepaliEventService.updateEvent(id, updates);
         if (updated) {
           const newEvents = events.map((e) => (e.id === id ? updated : e));
           setEvents(newEvents);
+
+          // Write to localStorage (always)
           localStorage.setItem('nepali_events', JSON.stringify(newEvents));
+
+          // Write to Supabase (if authenticated)
+          if (supabaseUserId) {
+            try {
+              await SupabaseService.updateEvent(id, updates);
+              console.log('Event updated in Supabase:', id);
+            } catch (error) {
+              console.error('Failed to update event in Supabase:', error);
+            }
+          }
+
           showNotification('success', 'Event updated successfully');
         }
       }
     },
-    [events, nepaliEventService, showNotification]
+    [events, nepaliEventService, supabaseUserId, showNotification]
   );
 
   const deleteEvent = useCallback(
@@ -186,7 +216,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nepaliEventService.deleteEvent(id);
         const newEvents = events.filter((e) => e.id !== id);
         setEvents(newEvents);
+
+        // Delete from localStorage (always)
         localStorage.setItem('nepali_events', JSON.stringify(newEvents));
+
+        // Delete from Supabase (if authenticated)
+        if (supabaseUserId) {
+          try {
+            await SupabaseService.deleteEvent(id);
+            console.log('Event deleted from Supabase:', id);
+          } catch (error) {
+            console.error('Failed to delete event from Supabase:', error);
+          }
+        }
 
         // Delete from Google Calendar if synced
         if (syncService && googleCalendarService) {
@@ -209,35 +251,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showNotification('success', 'Event deleted successfully');
       }
     },
-    [events, nepaliEventService, syncService, googleCalendarService, showNotification]
+    [events, nepaliEventService, supabaseUserId, syncService, googleCalendarService, showNotification]
   );
 
   const addBirthday = useCallback(
-    (birthday: Omit<LunarBirthday, 'id'>) => {
+    async (birthday: Omit<LunarBirthday, 'id'>) => {
       if (nepaliEventService) {
         const newBirthday = nepaliEventService.addLunarBirthday(birthday);
         const updated = [...birthdays, newBirthday];
         setBirthdays(updated);
+
+        // Write to localStorage (always)
         localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
+
+        // Write to Supabase (if authenticated)
+        if (supabaseUserId) {
+          try {
+            await SupabaseService.createBirthday(newBirthday, supabaseUserId);
+            console.log('Birthday saved to Supabase:', newBirthday.id);
+          } catch (error) {
+            console.error('Failed to save birthday to Supabase:', error);
+          }
+        }
+
         showNotification('success', `Birthday for "${birthday.name}" added successfully`);
       }
     },
-    [birthdays, nepaliEventService, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, showNotification]
   );
 
   const updateBirthday = useCallback(
-    (id: string, updates: Partial<LunarBirthday>) => {
+    async (id: string, updates: Partial<LunarBirthday>) => {
       if (nepaliEventService) {
         const updated = nepaliEventService.updateLunarBirthday(id, updates);
         if (updated) {
           const newBirthdays = birthdays.map((b) => (b.id === id ? updated : b));
           setBirthdays(newBirthdays);
+
+          // Write to localStorage (always)
           localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
+
+          // Write to Supabase (if authenticated)
+          if (supabaseUserId) {
+            try {
+              await SupabaseService.updateBirthday(id, updates);
+              console.log('Birthday updated in Supabase:', id);
+            } catch (error) {
+              console.error('Failed to update birthday in Supabase:', error);
+            }
+          }
+
           showNotification('success', 'Birthday updated successfully');
         }
       }
     },
-    [birthdays, nepaliEventService, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, showNotification]
   );
 
   const deleteBirthday = useCallback(
@@ -251,7 +319,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nepaliEventService.deleteLunarBirthday(id);
         const newBirthdays = birthdays.filter((b) => b.id !== id);
         setBirthdays(newBirthdays);
+
+        // Delete from localStorage (always)
         localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
+
+        // Delete from Supabase (if authenticated)
+        if (supabaseUserId) {
+          try {
+            await SupabaseService.deleteBirthday(id);
+            console.log('Birthday deleted from Supabase:', id);
+          } catch (error) {
+            console.error('Failed to delete birthday from Supabase:', error);
+          }
+        }
 
         // Delete from Google Calendar if synced (handles multiple events for tithi birthdays)
         if (syncService && googleCalendarService) {
@@ -316,7 +396,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('========== DELETE BIRTHDAY END ==========');
       }
     },
-    [birthdays, nepaliEventService, syncService, googleCalendarService, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, syncService, googleCalendarService, showNotification]
   );
 
   const syncEvents = useCallback(
@@ -418,6 +498,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     [syncService, googleCalendarService, nepaliEventService, events, birthdays, showNotification]
   );
+
+  // Check Supabase auth session on mount
+  React.useEffect(() => {
+    const checkSupabaseAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Supabase Auth] Session check:', session ? 'Found session' : 'No session');
+
+        if (session?.user) {
+          console.log('[Supabase Auth] User ID:', session.user.id);
+
+          // Get or create user in database
+          const dbUser = await SupabaseService.getOrCreateUser(
+            session.user.id,
+            session.user.email || '',
+            session.user.user_metadata?.full_name
+          );
+
+          setSupabaseUserId(dbUser.id);
+          console.log('[Supabase Auth] User ID set:', dbUser.id);
+        } else {
+          console.log('[Supabase Auth] No user in session');
+        }
+      } catch (error) {
+        console.error('[Supabase Auth] Error checking auth:', error);
+      }
+    };
+
+    checkSupabaseAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Supabase Auth] State change event:', event);
+      if (session?.user) {
+        console.log('[Supabase Auth] Authenticated:', session.user.email);
+        const dbUser = await SupabaseService.getOrCreateUser(
+          session.user.id,
+          session.user.email || '',
+          session.user.user_metadata?.full_name
+        );
+        setSupabaseUserId(dbUser.id);
+      } else {
+        console.log('[Supabase Auth] Logged out');
+        setSupabaseUserId(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Check for existing token on mount
   React.useEffect(() => {

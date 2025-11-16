@@ -14,6 +14,7 @@ export default defineConfig(({ command, mode }) => {
       open: false,
     },
     root: 'src',
+    envDir: '../', // Look for .env files in project root, not src folder
     build: {
       outDir: '../dist-web',
       target: 'esnext',
