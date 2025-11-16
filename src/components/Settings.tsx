@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { migrateToSupabase, isMigrationDone, type MigrationProgress } from '../utils/migrateToSupabase';
+import {
+  exportDataAsJSON,
+  exportDataAsCSV,
+  getExportSummary,
+  importDataFromJSON,
+  restoreDataFromImport,
+  type ExportData
+} from '../utils/exportData';
 import './Settings.css';
 
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
@@ -32,6 +40,10 @@ const Settings: React.FC = () => {
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState<MigrationProgress | null>(null);
   const [migrationDone, setMigrationDone] = useState(isMigrationDone());
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Save sync config to localStorage whenever it changes
   useEffect(() => {
@@ -71,6 +83,57 @@ const Settings: React.FC = () => {
 
     setIsMigrating(false);
   };
+
+  const handleExportJSON = () => {
+    try {
+      exportDataAsJSON();
+      setShowExportMenu(false);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      exportDataAsCSV();
+      setShowExportMenu(false);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportMessage(null);
+
+    try {
+      const data = await importDataFromJSON(file);
+      restoreDataFromImport(data);
+      setImportMessage({
+        type: 'success',
+        message: `Successfully imported ${data.data.events.length} events and ${data.data.birthdays.length} birthdays. Refresh the page to see changes.`
+      });
+    } catch (e) {
+      setImportMessage({
+        type: 'error',
+        message: `Import failed: ${e instanceof Error ? e.message : String(e)}`
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const exportSummary = getExportSummary();
 
   const getEventStats = () => {
     let totalFestivals = festivals.length;
@@ -392,10 +455,111 @@ const Settings: React.FC = () => {
 
             <div className="setting-item">
               <div className="setting-info">
-                <h5>Export Data</h5>
-                <p>Download your events and birthdays as JSON</p>
+                <h5>📥 Export Data</h5>
+                <p>Download your events, birthdays, and settings</p>
+                {exportSummary.total > 0 && (
+                  <p style={{ fontSize: '0.85em', color: '#666', marginTop: '8px' }}>
+                    {exportSummary.festivals} festivals · {exportSummary.customEvents} events · {exportSummary.birthdays} birthdays
+                  </p>
+                )}
               </div>
-              <button className="btn btn-secondary">Export</button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                >
+                  ↓ Export
+                </button>
+                {showExportMenu && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      backgroundColor: 'white',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      zIndex: 1000,
+                      minWidth: '200px',
+                      marginTop: '4px'
+                    }}
+                  >
+                    <button
+                      onClick={handleExportJSON}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '0.95em',
+                        borderBottom: '1px solid #eee',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                    >
+                      📄 JSON (complete backup)
+                    </button>
+                    <button
+                      onClick={handleExportCSV}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '0.95em',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                    >
+                      📊 CSV (spreadsheet)
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <h5>📤 Import Data</h5>
+                <p>Restore events and birthdays from a backup file</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+              <button
+                className="btn btn-secondary"
+                onClick={handleImportClick}
+                disabled={isImporting}
+              >
+                {isImporting ? 'Importing...' : '↑ Import'}
+              </button>
+              {importMessage && (
+                <div
+                  style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    borderRadius: '4px',
+                    backgroundColor: importMessage.type === 'success' ? '#d4edda' : '#f8d7da',
+                    color: importMessage.type === 'success' ? '#155724' : '#721c24',
+                    fontSize: '0.9em'
+                  }}
+                >
+                  {importMessage.type === 'success' ? '✅' : '❌'} {importMessage.message}
+                </div>
+              )}
             </div>
 
             <div className="setting-item">
