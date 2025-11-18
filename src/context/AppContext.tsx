@@ -6,16 +6,13 @@ import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEvent
 import type { SyncConfig } from '../services/syncService.js';
 import { supabase } from '../services/supabaseClient';
 import * as SupabaseService from '../services/supabaseService';
-import { getOrCreateUserAdmin } from '../services/supabaseAdmin';
 
 interface AppContextType {
   // Authentication
   isAuthenticated: boolean;
   user: { email?: string } | null;
   supabaseUserId: string | null;
-  login: () => Promise<void>;
   logout: () => void;
-  handleOAuthCallback: (code: string) => Promise<void>;
 
   // Services
   googleCalendarService: GoogleCalendarService | null;
@@ -81,80 +78,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => setNotification(null), 4000);
   }, []);
 
-  const login = useCallback(async () => {
-    try {
-      // Get from window global or environment
-      const clientId = (window as any).VITE_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
-      const clientSecret = (window as any).VITE_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
-      const redirectUri = (window as any).VITE_REDIRECT_URI || process.env.VITE_REDIRECT_URI;
 
-      console.log('Login attempt with credentials:', {
-        clientId: clientId ? clientId.substring(0, 10) + '...' : 'missing',
-        clientSecret: clientSecret ? 'present' : 'missing',
-        redirectUri: redirectUri || 'missing'
-      });
+  const logout = useCallback(async () => {
+    console.log('[AppContext] Logout started');
 
-      if (!clientId || !clientSecret) {
-        throw new Error('Missing Google OAuth credentials (clientId or clientSecret)');
-      }
+    // Clear Supabase session storage
+    localStorage.removeItem('sb-rjhuockfdeaenlvizzoa-auth-token');
+    sessionStorage.removeItem('sb-rjhuockfdeaenlvizzoa-auth-token');
 
-      const service = new GoogleCalendarService({
-        clientId,
-        clientSecret,
-        redirectUri: redirectUri || 'http://localhost:3000/callback',
-        apiKey: '',
-      });
+    // Sign out from Supabase (fire and forget)
+    supabase.auth.signOut().catch((error) => {
+      console.warn('[AppContext] Supabase signout error (ignored):', error);
+    });
 
-      const authUrl = service.getAuthorizationUrl();
-      console.log('Generated auth URL:', authUrl);
-      window.location.href = authUrl;
-    } catch (error) {
-      console.error('Login error in AppContext:', error);
-      showNotification('error', `Login error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }, [showNotification]);
-
-  const handleOAuthCallback = useCallback(async (code: string) => {
-    try {
-      const clientId = (window as any).VITE_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
-      const clientSecret = (window as any).VITE_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
-      const redirectUri = (window as any).VITE_REDIRECT_URI || process.env.VITE_REDIRECT_URI;
-
-      const service = new GoogleCalendarService({
-        clientId,
-        clientSecret,
-        redirectUri,
-        apiKey: '',
-      });
-
-      const { accessToken } = await service.exchangeCodeForToken(code);
-      service.setAccessToken(accessToken);
-
-      // Store token in localStorage (in production, use secure storage)
-      localStorage.setItem('google_access_token', accessToken);
-
-      setGoogleCalendarService(service);
-      if (nepaliEventService) {
-        setSyncService(new SyncService(service, nepaliEventService));
-      }
-
-      setIsAuthenticated(true);
-      setUser({ email: 'User' });
-      showNotification('success', 'Successfully logged in!');
-    } catch (error) {
-      console.error('OAuth error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      showNotification('error', `Authentication failed: ${errorMsg}`);
-    }
-  }, [nepaliEventService, showNotification]);
-
-  const logout = useCallback(() => {
+    // Immediately clear all local state
+    console.log('[AppContext] Clearing local state');
     localStorage.removeItem('google_access_token');
     setGoogleCalendarService(null);
     setSyncService(null);
     setIsAuthenticated(false);
     setUser(null);
+    setSupabaseUserId(null);
     showNotification('info', 'Logged out successfully');
+    console.log('[AppContext] Logout complete');
   }, [showNotification]);
 
   const addEvent = useCallback(
@@ -512,33 +458,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.log('[Supabase] Using authenticated user:', session.user.id);
           setSupabaseUserId(session.user.id);
         } else {
-          // No auth session, use browser/device identifier
-          console.log('[Supabase] No auth session, using device ID');
-          let deviceUserId = localStorage.getItem('supabase_device_user_id');
-
-          if (!deviceUserId) {
-            // Generate a new device user ID
-            deviceUserId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            localStorage.setItem('supabase_device_user_id', deviceUserId);
-            console.log('[Supabase] Generated new device user ID:', deviceUserId);
-          } else {
-            console.log('[Supabase] Using existing device user ID:', deviceUserId);
-          }
-
-          // Create or get user record in database (using admin bypass for RLS)
-          try {
-            const dbUser = await getOrCreateUserAdmin(
-              deviceUserId,
-              `${deviceUserId}@app.local`,
-              'Local User'
-            );
-            setSupabaseUserId(dbUser.id);
-            console.log('[Supabase] Device user set:', dbUser.id);
-          } catch (dbError) {
-            console.error('[Supabase] Error creating/getting device user:', dbError);
-            // Still set the device ID even if DB creation fails
-            setSupabaseUserId(deviceUserId);
-          }
+          // No auth session - don't use Supabase
+          console.log('[Supabase] No auth session, using localStorage only');
+          setSupabaseUserId(null);
         }
       } catch (error) {
         console.error('[Supabase] Error initializing user:', error);
@@ -553,9 +475,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (session?.user) {
         console.log('[Supabase] Authenticated user:', session.user.id);
         setSupabaseUserId(session.user.id);
+        setIsAuthenticated(true);
+        setUser({ email: session.user.email });
+
+        // Ensure user exists in users table (for foreign key constraint)
+        try {
+          const { data: existingUser, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', session.user.id)
+            .single();
+
+          if (!existingUser && (!checkError || checkError.code === 'PGRST116')) {
+            // User doesn't exist, create it
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.user_metadata?.name || 'User',
+                google_id: session.user.id,
+                created_at: new Date().toISOString(),
+                last_login: new Date().toISOString(),
+              });
+
+            if (insertError) {
+              console.error('[Supabase] Error creating user record:', insertError);
+            } else {
+              console.log('[Supabase] User record created:', session.user.id);
+            }
+          }
+        } catch (error) {
+          console.error('[Supabase] Error ensuring user exists:', error);
+        }
       } else {
         console.log('[Supabase] No authenticated user');
-        // Keep using device ID
+        setSupabaseUserId(null);
+        setIsAuthenticated(false);
+        setUser(null);
       }
     });
 
@@ -564,38 +521,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Check for existing token on mount
-  React.useEffect(() => {
-    const existingToken = localStorage.getItem('google_access_token');
-    if (existingToken) {
-      console.log('Found existing token in localStorage, marking as authenticated');
-      setIsAuthenticated(true);
-      setUser({ email: 'User' });
-
-      // Re-initialize services with the token
-      try {
-        const clientId = (window as any).VITE_GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
-        const clientSecret = (window as any).VITE_GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
-        const redirectUri = (window as any).VITE_REDIRECT_URI || process.env.VITE_REDIRECT_URI;
-
-        const service = new GoogleCalendarService({
-          clientId,
-          clientSecret,
-          redirectUri,
-          apiKey: '',
-        });
-
-        service.setAccessToken(existingToken);
-        setGoogleCalendarService(service);
-
-        if (nepaliEventService) {
-          setSyncService(new SyncService(service, nepaliEventService));
-        }
-      } catch (error) {
-        console.error('Error initializing services with cached token:', error);
-      }
-    }
-  }, [nepaliEventService]);
 
   // Load festivals on mount
   React.useEffect(() => {
@@ -623,9 +548,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isAuthenticated,
     user,
     supabaseUserId,
-    login,
     logout,
-    handleOAuthCallback,
     googleCalendarService,
     nepaliEventService,
     syncService,

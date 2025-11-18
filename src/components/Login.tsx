@@ -1,43 +1,30 @@
 import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { supabase } from '../services/supabaseClient';
 import './Login.css';
 
 const Login: React.FC = () => {
-  const { isAuthenticated, login, handleOAuthCallback, showNotification } = useApp();
+  const { isAuthenticated, showNotification } = useApp();
   const [isLoading, setIsLoading] = React.useState(false);
-
-  useEffect(() => {
-    // Check for OAuth callback
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-
-    if (code && !isAuthenticated) {
-      handleOAuthCallback(code);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [isAuthenticated, handleOAuthCallback]);
 
   const handleLoginClick = async () => {
     setIsLoading(true);
     try {
-      // Check if environment variables are available
-      const clientId = (window as any).VITE_GOOGLE_CLIENT_ID;
-      const clientSecret = (window as any).VITE_GOOGLE_CLIENT_SECRET;
-      const redirectUri = (window as any).VITE_REDIRECT_URI;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
 
-      if (!clientId || !clientSecret) {
-        console.error('Missing environment variables:', {
-          clientId: clientId ? 'present' : 'missing',
-          clientSecret: clientSecret ? 'present' : 'missing',
-          redirectUri: redirectUri ? 'present' : 'missing'
-        });
-        showNotification('error', 'Missing Google OAuth credentials. Check console for details.');
+      if (error) {
+        console.error('Supabase OAuth error:', error);
+        showNotification('error', `Login failed: ${error.message}`);
         setIsLoading(false);
         return;
       }
 
-      await login();
+      console.log('OAuth initiated:', data);
     } catch (error) {
       console.error('Login error:', error);
       showNotification('error', 'Login failed. Check console for details.');

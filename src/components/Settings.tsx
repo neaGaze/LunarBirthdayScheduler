@@ -43,6 +43,7 @@ const Settings: React.FC = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Save sync config to localStorage whenever it changes
@@ -67,6 +68,24 @@ const Settings: React.FC = () => {
 
   const handleSync = async () => {
     await syncEvents(syncConfig);
+  };
+
+  const handleLogout = async () => {
+    console.log('[Settings] Logout initiated');
+    setIsLoggingOut(true);
+    try {
+      console.log('[Settings] Calling logout function');
+      await logout();
+      console.log('[Settings] Logout complete, reloading page');
+      // Reload page to clear all state and session
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      console.error('[Settings] Logout error:', error);
+      showNotification('error', 'Failed to logout');
+      setIsLoggingOut(false);
+    }
   };
 
   const handleMigrate = async () => {
@@ -362,8 +381,12 @@ const Settings: React.FC = () => {
                 <h5>Google Account</h5>
                 <p>You are signed in to your Google account</p>
               </div>
-              <button className="btn btn-danger" onClick={logout}>
-                Sign Out
+              <button
+                className="btn btn-danger"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? '⏳ Signing out...' : 'Sign Out'}
               </button>
             </div>
           </div>

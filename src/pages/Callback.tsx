@@ -1,62 +1,51 @@
 import React, { useEffect, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { supabase } from '../services/supabaseClient';
 
 const Callback: React.FC = () => {
-  const { handleOAuthCallback, showNotification, isAuthenticated } = useApp();
-  const [status, setStatus] = useState('Processing OAuth callback...');
+  const [status, setStatus] = useState('Processing authentication...');
 
   useEffect(() => {
     const handleCallback = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const error = params.get('error');
+      try {
+        // Supabase handles the OAuth callback automatically
+        // Check if we have a session
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-      console.log('Callback page loaded:', { code, error, isAuthenticated });
-
-      if (error) {
-        console.error('OAuth error:', error);
-        setStatus(`OAuth error: ${error}`);
-        showNotification('error', `OAuth error: ${error}`);
-        // Redirect to home after 3 seconds
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 3000);
-        return;
-      }
-
-      if (code) {
-        try {
-          setStatus('Exchanging authorization code for access token...');
-          console.log('Exchanging code for token...');
-          await handleOAuthCallback(code);
-
-          setStatus('Authentication successful! Redirecting...');
-          console.log('Authentication successful, redirecting to home');
-
-          // Redirect to home - the AppProvider will check localStorage for the token
-          setTimeout(() => {
-            console.log('Redirecting to home');
-            window.location.href = '/';
-          }, 500);
-        } catch (error) {
-          console.error('Callback error:', error);
-          setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          showNotification('error', 'Failed to complete authentication');
+        if (error) {
+          console.error('Auth session error:', error);
+          setStatus(`Error: ${error.message}`);
           setTimeout(() => {
             window.location.href = '/';
           }, 3000);
+          return;
         }
-      } else {
-        setStatus('No authorization code received');
-        console.error('No authorization code in callback');
+
+        if (session) {
+          console.log('✅ Authentication successful:', session.user.email);
+          setStatus('Authentication successful! Redirecting...');
+
+          // Redirect to home after a brief delay
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        } else {
+          console.log('No session found');
+          setStatus('Authentication completed. Redirecting...');
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        }
+      } catch (error) {
+        console.error('Callback error:', error);
+        setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setTimeout(() => {
           window.location.href = '/';
-        }, 2000);
+        }, 3000);
       }
     };
 
     handleCallback();
-  }, [handleOAuthCallback, showNotification, isAuthenticated]);
+  }, []);
 
   return (
     <div style={{
