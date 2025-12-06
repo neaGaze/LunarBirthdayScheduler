@@ -3,7 +3,6 @@
  * Handles events, birthdays, sync mappings, and settings
  */
 
-import { supabase } from '../services/supabaseClient';
 import * as SupabaseService from '../services/supabaseService';
 import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEventService';
 
@@ -34,6 +33,13 @@ const MIGRATION_FLAG_KEY = 'nepali_calendar_migration_to_supabase_done';
  */
 export function isMigrationDone(): boolean {
   return localStorage.getItem(MIGRATION_FLAG_KEY) === 'true';
+}
+
+/**
+ * Reset migration flag to allow re-migration
+ */
+export function resetMigrationFlag(): void {
+  localStorage.removeItem(MIGRATION_FLAG_KEY);
 }
 
 /**
@@ -110,26 +116,53 @@ function validateBirthdays(birthdays: LunarBirthday[]): LunarBirthday[] {
 async function uploadEvents(
   userId: string,
   events: NepaliCalendarEvent[],
-  onProgress: (current: number, total: number) => void
+  onProgress: (current: number, total: number) => void,
+  accessToken?: string
 ): Promise<{ count: number; errors: string[] }> {
   const errors: string[] = [];
   let uploadedCount = 0;
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   for (let i = 0; i < events.length; i++) {
     try {
       const event = events[i];
       const dbEvent = SupabaseService.eventToDb(event, userId);
 
-      const { error } = await supabase
-        .from('events')
-        .insert([dbEvent]);
+      // Generate a proper UUID for the id field (DB expects UUID, not string like "event_123")
+      const newId = crypto.randomUUID();
+      const eventData = {
+        ...dbEvent,
+        id: newId  // Override with proper UUID
+      };
 
-      if (error) {
-        errors.push(`Event "${event.title}": ${error.message}`);
+      if (!accessToken) {
+        console.error('[Migration] No access token for events!');
+        errors.push(`Event "${event.title}": No access token`);
       } else {
-        uploadedCount++;
+        console.log('[Migration] Inserting event via fetch:', event.title);
+        const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/events`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': anonKey,
+            'Authorization': `Bearer ${accessToken}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(eventData)
+        });
+
+        if (!fetchResponse.ok) {
+          const errorText = await fetchResponse.text();
+          console.error('[Migration] Event upload error:', errorText);
+          errors.push(`Event "${event.title}": ${errorText}`);
+        } else {
+          uploadedCount++;
+        }
       }
     } catch (e) {
+      console.error('[Migration] Event exception:', e);
       errors.push(`Event upload error: ${e instanceof Error ? e.message : String(e)}`);
     }
 
@@ -145,116 +178,121 @@ async function uploadEvents(
 async function uploadBirthdays(
   userId: string,
   birthdays: LunarBirthday[],
-  onProgress: (current: number, total: number) => void
+  onProgress: (current: number, total: number) => void,
+  accessToken?: string
 ): Promise<{ count: number; errors: string[] }> {
   const errors: string[] = [];
   let uploadedCount = 0;
 
+  console.log('[Migration] uploadBirthdays called with userId:', userId, 'birthdays count:', birthdays.length);
+
+  if (birthdays.length === 0) {
+    console.log('[Migration] No birthdays to upload');
+    return { count: 0, errors: [] };
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
   for (let i = 0; i < birthdays.length; i++) {
+    const birthday = birthdays[i];
+    console.log('[Migration] Processing birthday', i + 1, ':', birthday.name);
+
     try {
-      const birthday = birthdays[i];
       const dbBirthday = SupabaseService.birthdayToDb(birthday, userId);
 
-      const { error } = await supabase
-        .from('birthdays')
-        .insert([dbBirthday]);
+      // Generate a proper UUID for the id field (DB expects UUID, not string like "birthday_123")
+      const newId = crypto.randomUUID();
+      const birthdayData = {
+        ...dbBirthday,
+        id: newId  // Override with proper UUID
+      };
+      console.log('[Migration] Converted to DB with new UUID:', { id: newId, name: birthdayData.name });
 
-      if (error) {
-        errors.push(`Birthday "${birthday.name}": ${error.message}`);
+      if (!accessToken) {
+        console.error('[Migration] No access token available!');
+        errors.push(`Birthday "${birthday.name}": No access token`);
       } else {
-        uploadedCount++;
+        try {
+          console.log('[Migration] Inserting birthday via fetch...');
+          const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/birthdays`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': anonKey,
+              'Authorization': `Bearer ${accessToken}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(birthdayData)
+          });
+
+          console.log('[Migration] Fetch response status:', fetchResponse.status);
+
+          if (!fetchResponse.ok) {
+            const errorText = await fetchResponse.text();
+            console.error('[Migration] Fetch error:', errorText);
+            errors.push(`Birthday "${birthday.name}": ${errorText}`);
+          } else {
+            console.log('[Migration] Success!');
+            uploadedCount++;
+          }
+        } catch (fetchError) {
+          console.error('[Migration] Fetch exception:', fetchError);
+          errors.push(`Birthday "${birthday.name}": ${fetchError}`);
+        }
       }
+
+      console.log('[Migration] Insert done');
     } catch (e) {
-      errors.push(`Birthday upload error: ${e instanceof Error ? e.message : String(e)}`);
+      console.error('[Migration] Exception:', e);
+      errors.push(`Birthday error: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     onProgress(i + 1, birthdays.length);
   }
 
+  console.log('[Migration] uploadBirthdays done. Uploaded:', uploadedCount, 'Errors:', errors.length);
   return { count: uploadedCount, errors };
 }
 
 /**
  * Upload sync mappings to Supabase
+ * NOTE: Sync mappings use string IDs locally but DB expects UUID for local_event_id
+ * Skipping for now - these can be recreated when user syncs to Google Calendar
  */
 async function uploadSyncMappings(
-  userId: string,
-  mappings: Record<string, string>
+  _userId: string,
+  mappings: Record<string, string>,
+  _accessToken?: string
 ): Promise<{ count: number; errors: string[] }> {
-  const errors: string[] = [];
-  let uploadedCount = 0;
-
-  try {
-    // Check if user already has sync mappings
-    const { data: existing, error: fetchError } = await supabase
-      .from('sync_mappings')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (fetchError) {
-      errors.push(`Error checking existing mappings: ${fetchError.message}`);
-      return { count: 0, errors };
-    }
-
-    const existingMap = new Map(existing?.map(m => [m.event_id, m.google_event_id]) || []);
-
-    for (const [eventId, googleEventId] of Object.entries(mappings)) {
-      try {
-        if (existingMap.has(eventId)) {
-          // Update existing mapping
-          const { error } = await supabase
-            .from('sync_mappings')
-            .update({ google_event_id: googleEventId })
-            .eq('user_id', userId)
-            .eq('event_id', eventId);
-
-          if (error) {
-            errors.push(`Update mapping "${eventId}": ${error.message}`);
-          } else {
-            uploadedCount++;
-          }
-        } else {
-          // Insert new mapping
-          const { error } = await supabase
-            .from('sync_mappings')
-            .insert([{
-              user_id: userId,
-              event_id: eventId,
-              google_event_id: googleEventId
-            }]);
-
-          if (error) {
-            errors.push(`Insert mapping "${eventId}": ${error.message}`);
-          } else {
-            uploadedCount++;
-          }
-        }
-      } catch (e) {
-        errors.push(`Mapping error for "${eventId}": ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-  } catch (e) {
-    errors.push(`Sync mappings upload error: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  return { count: uploadedCount, errors };
+  // Skip sync mappings migration - they use string IDs that don't match DB UUID type
+  // These will be recreated when user syncs events to Google Calendar
+  console.log('[Migration] Skipping sync mappings (will be recreated on next Google Calendar sync)');
+  console.log('[Migration] Would have migrated', Object.keys(mappings).length, 'mappings');
+  return { count: 0, errors: [] };
 }
 
 /**
  * Main migration function
  * Migrates all localStorage data to Supabase
+ * @param onProgress - Progress callback
+ * @param userId - User ID (optional, will be fetched from session if not provided)
+ * @param force - Force re-migration even if already done
+ * @param accessToken - Access token for authenticated requests
  */
 export async function migrateToSupabase(
   onProgress?: (progress: MigrationProgress) => void,
-  userId?: string
+  userId?: string,
+  force: boolean = false,
+  accessToken?: string
 ): Promise<MigrationResult> {
   const updateProgress = (progress: MigrationProgress) => {
     onProgress?.(progress);
   };
 
   try {
-    // Check if already migrated
-    if (isMigrationDone()) {
+    // Check if already migrated (skip if force=true)
+    if (!force && isMigrationDone()) {
       return {
         success: true,
         message: 'Already migrated to Supabase',
@@ -263,22 +301,14 @@ export async function migrateToSupabase(
       };
     }
 
-    // Get authenticated user
-    let currentUserId = userId;
+    // Get authenticated user - userId must be passed from caller
+    const currentUserId = userId;
     if (!currentUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        currentUserId = session.user.id;
-      } else {
-        // Try to sign in with Supabase anonymously or via browser redirect
-        // For now, require explicit userId to be passed in
-        throw new Error('Migration requires Supabase authentication. Please log in first by clicking the "Sign in with Supabase" button in Settings.');
-      }
+      throw new Error('Migration requires authentication. User ID must be provided.');
     }
 
-    if (!currentUserId) {
-      throw new Error('Unable to determine user ID. Please ensure you are logged in.');
+    if (!accessToken) {
+      throw new Error('Migration requires authentication. Access token must be provided.');
     }
     const errors: string[] = [];
 
@@ -294,6 +324,12 @@ export async function migrateToSupabase(
     const { events, birthdays, syncMappings } = getLocalStorageData();
     const validEvents = validateEvents(events);
     const validBirthdays = validateBirthdays(birthdays);
+
+    console.log('[Migration] Data found:', {
+      events: validEvents.length,
+      birthdays: validBirthdays.length,
+      syncMappings: Object.keys(syncMappings).length
+    });
 
     updateProgress({
       status: 'processing',
@@ -312,6 +348,7 @@ export async function migrateToSupabase(
       message: 'Uploading events...'
     });
 
+    console.log('[Migration] Uploading events...');
     const eventsResult = await uploadEvents(currentUserId, validEvents, (current, total) => {
       updateProgress({
         status: 'processing',
@@ -320,7 +357,8 @@ export async function migrateToSupabase(
         total,
         message: `Uploading events (${current}/${total})...`
       });
-    });
+    }, accessToken);
+    console.log('[Migration] Events result:', eventsResult);
 
     errors.push(...eventsResult.errors);
 
@@ -333,6 +371,7 @@ export async function migrateToSupabase(
       message: 'Uploading birthdays...'
     });
 
+    console.log('[Migration] Uploading birthdays...');
     const birthdaysResult = await uploadBirthdays(currentUserId, validBirthdays, (current, total) => {
       updateProgress({
         status: 'processing',
@@ -341,7 +380,8 @@ export async function migrateToSupabase(
         total,
         message: `Uploading birthdays (${current}/${total})...`
       });
-    });
+    }, accessToken);
+    console.log('[Migration] Birthdays result:', birthdaysResult);
 
     errors.push(...birthdaysResult.errors);
 
@@ -354,25 +394,29 @@ export async function migrateToSupabase(
       message: 'Uploading sync mappings...'
     });
 
-    const mappingsResult = await uploadSyncMappings(currentUserId, syncMappings);
+    console.log('[Migration] Uploading sync mappings...');
+    const mappingsResult = await uploadSyncMappings(currentUserId, syncMappings, accessToken);
+    console.log('[Migration] Sync mappings result:', mappingsResult);
     errors.push(...mappingsResult.errors);
 
     // Mark migration as done
     localStorage.setItem(MIGRATION_FLAG_KEY, 'true');
-
-    updateProgress({
-      status: 'success',
-      step: 'complete',
-      current: 1,
-      total: 1,
-      message: 'Migration complete!'
-    });
 
     const stats = {
       eventsCount: eventsResult.count,
       birthdaysCount: birthdaysResult.count,
       syncMappingsCount: mappingsResult.count
     };
+
+    console.log('[Migration] Complete!', { stats, errors });
+
+    updateProgress({
+      status: 'success',
+      step: 'complete',
+      current: 1,
+      total: 1,
+      message: `Done! ${stats.eventsCount} events, ${stats.birthdaysCount} birthdays synced.`
+    });
 
     return {
       success: errors.length === 0,

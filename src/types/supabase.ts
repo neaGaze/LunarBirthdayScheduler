@@ -74,9 +74,9 @@ export interface DbUserSettings {
   updated_at: string;
 }
 
-// Insert types (omit auto-generated fields)
-export type DbEventInsert = Omit<DbEvent, 'id' | 'created_at' | 'updated_at'>;
-export type DbBirthdayInsert = Omit<DbBirthday, 'id' | 'created_at' | 'updated_at'>;
+// Insert types (include id to allow client-generated IDs)
+export type DbEventInsert = Omit<DbEvent, 'created_at' | 'updated_at'>;
+export type DbBirthdayInsert = Omit<DbBirthday, 'created_at' | 'updated_at'>;
 export type DbSyncMappingInsert = Omit<DbSyncMapping, 'id' | 'created_at'>;
 export type DbUserSettingsInsert = Omit<DbUserSettings, 'updated_at'>;
 

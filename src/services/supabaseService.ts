@@ -23,6 +23,7 @@ import type { NepaliCalendarEvent, LunarBirthday } from './nepaliEventService';
  */
 export function eventToDb(event: NepaliCalendarEvent, userId: string): DbEventInsert {
   return {
+    id: event.id, // Use client-generated ID
     user_id: userId,
     title: event.title,
     nepali_year: event.nepaliDate.year,
@@ -100,6 +101,7 @@ export function dbToEvent(dbEvent: DbEvent): NepaliCalendarEvent {
  */
 export function birthdayToDb(birthday: LunarBirthday, userId: string): DbBirthdayInsert {
   return {
+    id: birthday.id, // Use client-generated ID
     user_id: userId,
     name: birthday.name,
     nepali_year: birthday.nepaliDate.year,

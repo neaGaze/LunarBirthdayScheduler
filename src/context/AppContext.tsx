@@ -6,12 +6,21 @@ import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEvent
 import type { SyncConfig } from '../services/syncService.js';
 import { supabase } from '../services/supabaseClient';
 import * as SupabaseService from '../services/supabaseService';
+import { withRetry, isOnline } from '../utils/retry';
+
+interface SyncStatus {
+  isLoading: boolean;
+  lastSynced: Date | null;
+  error: string | null;
+  source: 'localStorage' | 'supabase' | null;
+}
 
 interface AppContextType {
   // Authentication
   isAuthenticated: boolean;
   user: { email?: string } | null;
   supabaseUserId: string | null;
+  supabaseAccessToken: string | null;
   logout: () => void;
 
   // Services
@@ -37,6 +46,9 @@ interface AppContextType {
   syncResult: { success: number; failed: number; message?: string; errors?: string[] } | null;
   syncEvents: (config: SyncConfig) => Promise<void>;
 
+  // Data sync status
+  dataSyncStatus: SyncStatus;
+
   // UI State
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -50,6 +62,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ email?: string } | null>(null);
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
+  const [supabaseAccessToken, setSupabaseAccessToken] = useState<string | null>(null);
   const [googleCalendarService, setGoogleCalendarService] =
     useState<GoogleCalendarService | null>(null);
   const [nepaliEventService] = useState(() => new NepaliEventService());
@@ -66,6 +79,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     message?: string;
     errors?: string[];
   } | null>(null);
+
+  const [dataSyncStatus, setDataSyncStatus] = useState<SyncStatus>({
+    isLoading: false,
+    lastSynced: null,
+    error: null,
+    source: null,
+  });
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notification, setNotification] = useState<{
@@ -110,18 +130,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updated = [...events, newEvent];
         setEvents(updated);
 
-        // Write to localStorage (always)
-        localStorage.setItem('nepali_events', JSON.stringify(updated));
-
-        // Write to Supabase (if authenticated)
+        // If authenticated, Supabase is primary; localStorage is cache
         if (supabaseUserId) {
           try {
             await SupabaseService.createEvent(newEvent, supabaseUserId);
-            console.log('Event saved to Supabase:', newEvent.id);
+            console.log('[Supabase] Event saved:', newEvent.id);
+            // Update localStorage cache
+            localStorage.setItem('nepali_events', JSON.stringify(updated));
           } catch (error) {
-            console.error('Failed to save event to Supabase:', error);
-            // Don't show error to user, localStorage is primary for now
+            console.error('[Supabase] Failed to save event:', error);
+            showNotification('error', 'Failed to save to cloud. Data saved locally.');
+            localStorage.setItem('nepali_events', JSON.stringify(updated));
           }
+        } else {
+          // Not authenticated - localStorage only
+          localStorage.setItem('nepali_events', JSON.stringify(updated));
         }
 
         showNotification('success', `Event "${event.title}" created successfully`);
@@ -138,17 +161,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newEvents = events.map((e) => (e.id === id ? updated : e));
           setEvents(newEvents);
 
-          // Write to localStorage (always)
-          localStorage.setItem('nepali_events', JSON.stringify(newEvents));
-
-          // Write to Supabase (if authenticated)
+          // If authenticated, Supabase is primary; localStorage is cache
           if (supabaseUserId) {
             try {
               await SupabaseService.updateEvent(id, updates);
-              console.log('Event updated in Supabase:', id);
+              console.log('[Supabase] Event updated:', id);
+              localStorage.setItem('nepali_events', JSON.stringify(newEvents));
             } catch (error) {
-              console.error('Failed to update event in Supabase:', error);
+              console.error('[Supabase] Failed to update event:', error);
+              showNotification('error', 'Failed to update in cloud. Saved locally.');
+              localStorage.setItem('nepali_events', JSON.stringify(newEvents));
             }
+          } else {
+            localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           }
 
           showNotification('success', 'Event updated successfully');
@@ -165,17 +190,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newEvents = events.filter((e) => e.id !== id);
         setEvents(newEvents);
 
-        // Delete from localStorage (always)
-        localStorage.setItem('nepali_events', JSON.stringify(newEvents));
-
-        // Delete from Supabase (if authenticated)
+        // If authenticated, Supabase is primary; localStorage is cache
         if (supabaseUserId) {
           try {
             await SupabaseService.deleteEvent(id);
-            console.log('Event deleted from Supabase:', id);
+            console.log('[Supabase] Event deleted:', id);
+            localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           } catch (error) {
-            console.error('Failed to delete event from Supabase:', error);
+            console.error('[Supabase] Failed to delete event:', error);
+            showNotification('error', 'Failed to delete from cloud. Deleted locally.');
+            localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           }
+        } else {
+          localStorage.setItem('nepali_events', JSON.stringify(newEvents));
         }
 
         // Delete from Google Calendar if synced
@@ -209,17 +236,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updated = [...birthdays, newBirthday];
         setBirthdays(updated);
 
-        // Write to localStorage (always)
-        localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
-
-        // Write to Supabase (if authenticated)
+        // If authenticated, Supabase is primary; localStorage is cache
         if (supabaseUserId) {
           try {
             await SupabaseService.createBirthday(newBirthday, supabaseUserId);
-            console.log('Birthday saved to Supabase:', newBirthday.id);
+            console.log('[Supabase] Birthday saved:', newBirthday.id);
+            localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
           } catch (error) {
-            console.error('Failed to save birthday to Supabase:', error);
+            console.error('[Supabase] Failed to save birthday:', error);
+            showNotification('error', 'Failed to save to cloud. Data saved locally.');
+            localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
           }
+        } else {
+          localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
         }
 
         showNotification('success', `Birthday for "${birthday.name}" added successfully`);
@@ -236,17 +265,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newBirthdays = birthdays.map((b) => (b.id === id ? updated : b));
           setBirthdays(newBirthdays);
 
-          // Write to localStorage (always)
-          localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
-
-          // Write to Supabase (if authenticated)
+          // If authenticated, Supabase is primary; localStorage is cache
           if (supabaseUserId) {
             try {
               await SupabaseService.updateBirthday(id, updates);
-              console.log('Birthday updated in Supabase:', id);
+              console.log('[Supabase] Birthday updated:', id);
+              localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
             } catch (error) {
-              console.error('Failed to update birthday in Supabase:', error);
+              console.error('[Supabase] Failed to update birthday:', error);
+              showNotification('error', 'Failed to update in cloud. Saved locally.');
+              localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
             }
+          } else {
+            localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           }
 
           showNotification('success', 'Birthday updated successfully');
@@ -268,17 +299,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newBirthdays = birthdays.filter((b) => b.id !== id);
         setBirthdays(newBirthdays);
 
-        // Delete from localStorage (always)
-        localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
-
-        // Delete from Supabase (if authenticated)
+        // If authenticated, Supabase is primary; localStorage is cache
         if (supabaseUserId) {
           try {
             await SupabaseService.deleteBirthday(id);
-            console.log('Birthday deleted from Supabase:', id);
+            console.log('[Supabase] Birthday deleted:', id);
+            localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           } catch (error) {
-            console.error('Failed to delete birthday from Supabase:', error);
+            console.error('[Supabase] Failed to delete birthday:', error);
+            showNotification('error', 'Failed to delete from cloud. Deleted locally.');
+            localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           }
+        } else {
+          localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
         }
 
         // Delete from Google Calendar if synced (handles multiple events for tithi birthdays)
@@ -456,7 +489,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (session?.user) {
           console.log('[Supabase] Using authenticated user:', session.user.id);
+          console.log('[Supabase] Provider token exists:', !!session.provider_token);
+          console.log('[Supabase] Access token exists:', !!session.access_token);
           setSupabaseUserId(session.user.id);
+          setSupabaseAccessToken(session.access_token);
+          setIsAuthenticated(true);
+          setUser({ email: session.user.email });
+
+          // Initialize Google Calendar service if we have a provider token
+          if (session.provider_token) {
+            console.log('[Google Calendar] Initializing with existing provider token');
+            const gcService = new GoogleCalendarService({
+              clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+              clientSecret: '',
+              redirectUri: window.location.origin,
+              apiKey: '',
+            });
+            gcService.setAccessToken(session.provider_token);
+            setGoogleCalendarService(gcService);
+
+            // Initialize sync service
+            const newSyncService = new SyncService(gcService, nepaliEventService);
+            setSyncService(newSyncService);
+            console.log('[Google Calendar] Services initialized from existing session');
+          }
         } else {
           // No auth session - don't use Supabase
           console.log('[Supabase] No auth session, using localStorage only');
@@ -474,9 +530,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[Supabase Auth] State change event:', event);
       if (session?.user) {
         console.log('[Supabase] Authenticated user:', session.user.id);
+        console.log('[Supabase] Provider token exists:', !!session.provider_token);
+        console.log('[Supabase] Access token exists:', !!session.access_token);
         setSupabaseUserId(session.user.id);
+        setSupabaseAccessToken(session.access_token);
         setIsAuthenticated(true);
         setUser({ email: session.user.email });
+
+        // Initialize Google Calendar service if we have a provider token
+        if (session.provider_token) {
+          console.log('[Google Calendar] Initializing with provider token');
+          const gcService = new GoogleCalendarService({
+            clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+            clientSecret: '',
+            redirectUri: window.location.origin,
+            apiKey: '',
+          });
+          gcService.setAccessToken(session.provider_token);
+          setGoogleCalendarService(gcService);
+
+          // Initialize sync service
+          const newSyncService = new SyncService(gcService, nepaliEventService);
+          setSyncService(newSyncService);
+          console.log('[Google Calendar] Services initialized');
+        }
 
         // Ensure user exists in users table (for foreign key constraint)
         try {
@@ -513,6 +590,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSupabaseUserId(null);
         setIsAuthenticated(false);
         setUser(null);
+        setGoogleCalendarService(null);
+        setSyncService(null);
       }
     });
 
@@ -527,27 +606,203 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFestivals(nepaliEventService.getFestivals());
   }, [nepaliEventService]);
 
-  // Load events and birthdays from localStorage on mount
+  // Load events and birthdays - from Supabase if authenticated, else localStorage
   React.useEffect(() => {
-    try {
-      const savedEvents = localStorage.getItem('nepali_events');
-      if (savedEvents) {
-        setEvents(JSON.parse(savedEvents));
-      }
+    const loadData = async () => {
+      // If authenticated with Supabase, load from there
+      if (supabaseUserId) {
+        setDataSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const savedBirthdays = localStorage.getItem('nepali_birthdays');
-      if (savedBirthdays) {
-        setBirthdays(JSON.parse(savedBirthdays));
+        // Check if online before trying Supabase
+        if (!isOnline()) {
+          console.log('[AppContext] Offline, loading from localStorage cache');
+          loadFromLocalStorage();
+          setDataSyncStatus({
+            isLoading: false,
+            lastSynced: null,
+            error: 'Offline - using cached data',
+            source: 'localStorage',
+          });
+          return;
+        }
+
+        try {
+          console.log('[AppContext] Loading data from Supabase for user:', supabaseUserId);
+
+          // Use retry logic for network resilience
+          const [supabaseEvents, supabaseBirthdays] = await withRetry(
+            async () => Promise.all([
+              SupabaseService.getEvents(supabaseUserId),
+              SupabaseService.getBirthdays(supabaseUserId),
+            ]),
+            { maxRetries: 3, delayMs: 1000 }
+          );
+
+          console.log('[AppContext] Loaded from Supabase:', {
+            events: supabaseEvents.length,
+            birthdays: supabaseBirthdays.length,
+          });
+
+          setEvents(supabaseEvents);
+          setBirthdays(supabaseBirthdays);
+
+          // Also update localStorage as cache
+          localStorage.setItem('nepali_events', JSON.stringify(supabaseEvents));
+          localStorage.setItem('nepali_birthdays', JSON.stringify(supabaseBirthdays));
+
+          setDataSyncStatus({
+            isLoading: false,
+            lastSynced: new Date(),
+            error: null,
+            source: 'supabase',
+          });
+        } catch (error) {
+          console.error('[AppContext] Error loading from Supabase after retries, falling back to localStorage:', error);
+          setDataSyncStatus(prev => ({
+            ...prev,
+            isLoading: false,
+            error: 'Failed to load from cloud, using local data'
+          }));
+
+          // Fallback to localStorage
+          loadFromLocalStorage();
+          setDataSyncStatus(prev => ({ ...prev, source: 'localStorage' }));
+        }
+      } else {
+        // Not authenticated - load from localStorage only
+        loadFromLocalStorage();
+        setDataSyncStatus({
+          isLoading: false,
+          lastSynced: null,
+          error: null,
+          source: 'localStorage',
+        });
       }
-    } catch (error) {
-      console.error('Error loading data from localStorage:', error);
-    }
-  }, []);
+    };
+
+    const loadFromLocalStorage = () => {
+      try {
+        const savedEvents = localStorage.getItem('nepali_events');
+        if (savedEvents) {
+          setEvents(JSON.parse(savedEvents));
+        }
+
+        const savedBirthdays = localStorage.getItem('nepali_birthdays');
+        if (savedBirthdays) {
+          setBirthdays(JSON.parse(savedBirthdays));
+        }
+      } catch (error) {
+        console.error('[AppContext] Error loading from localStorage:', error);
+      }
+    };
+
+    loadData();
+  }, [supabaseUserId]);
+
+  // Real-time subscriptions for multi-device sync
+  React.useEffect(() => {
+    if (!supabaseUserId) return;
+
+    console.log('[AppContext] Setting up real-time subscriptions');
+
+    const eventsChannel = supabase
+      .channel('events-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `user_id=eq.${supabaseUserId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] Events change:', payload.eventType, payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newEvent = SupabaseService.dbToEvent(payload.new as any);
+            setEvents((prev) => {
+              // Avoid duplicates
+              if (prev.some((e) => e.id === newEvent.id)) return prev;
+              const updated = [...prev, newEvent];
+              localStorage.setItem('nepali_events', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedEvent = SupabaseService.dbToEvent(payload.new as any);
+            setEvents((prev) => {
+              const updated = prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+              localStorage.setItem('nepali_events', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any).id;
+            setEvents((prev) => {
+              const updated = prev.filter((e) => e.id !== deletedId);
+              localStorage.setItem('nepali_events', JSON.stringify(updated));
+              return updated;
+            });
+          }
+
+          setDataSyncStatus((prev) => ({ ...prev, lastSynced: new Date() }));
+        }
+      )
+      .subscribe();
+
+    const birthdaysChannel = supabase
+      .channel('birthdays-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'birthdays',
+          filter: `user_id=eq.${supabaseUserId}`,
+        },
+        (payload) => {
+          console.log('[Realtime] Birthdays change:', payload.eventType, payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newBirthday = SupabaseService.dbToBirthday(payload.new as any);
+            setBirthdays((prev) => {
+              // Avoid duplicates
+              if (prev.some((b) => b.id === newBirthday.id)) return prev;
+              const updated = [...prev, newBirthday];
+              localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedBirthday = SupabaseService.dbToBirthday(payload.new as any);
+            setBirthdays((prev) => {
+              const updated = prev.map((b) => (b.id === updatedBirthday.id ? updatedBirthday : b));
+              localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any).id;
+            setBirthdays((prev) => {
+              const updated = prev.filter((b) => b.id !== deletedId);
+              localStorage.setItem('nepali_birthdays', JSON.stringify(updated));
+              return updated;
+            });
+          }
+
+          setDataSyncStatus((prev) => ({ ...prev, lastSynced: new Date() }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[AppContext] Cleaning up real-time subscriptions');
+      supabase.removeChannel(eventsChannel);
+      supabase.removeChannel(birthdaysChannel);
+    };
+  }, [supabaseUserId]);
 
   const value: AppContextType = {
     isAuthenticated,
     user,
     supabaseUserId,
+    supabaseAccessToken,
     logout,
     googleCalendarService,
     nepaliEventService,
@@ -564,6 +819,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isSyncing,
     syncResult,
     syncEvents,
+    dataSyncStatus,
     activeTab,
     setActiveTab,
     notification,

@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 
 const Callback: React.FC = () => {
   const [status, setStatus] = useState('Processing authentication...');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -23,6 +24,7 @@ const Callback: React.FC = () => {
         if (session) {
           console.log('✅ Authentication successful:', session.user.email);
           setStatus('Authentication successful! Redirecting...');
+          setIsAuthenticated(true);
 
           // Redirect to home after a brief delay
           setTimeout(() => {

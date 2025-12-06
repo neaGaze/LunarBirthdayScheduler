@@ -480,6 +480,16 @@
   }
 }
 
+/* Pulse animation for live sync indicator */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 @media (max-width: 768px) {
   .settings-panel {
     padding: 15px;

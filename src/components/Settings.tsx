@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { migrateToSupabase, isMigrationDone, type MigrationProgress } from '../utils/migrateToSupabase';
+import { migrateToSupabase, isMigrationDone, resetMigrationFlag, type MigrationProgress } from '../utils/migrateToSupabase';
 import {
   exportDataAsJSON,
   exportDataAsCSV,
@@ -14,7 +14,7 @@ import './Settings.css';
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
 
 const Settings: React.FC = () => {
-  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, showNotification } = useApp();
+  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, supabaseAccessToken, showNotification, dataSyncStatus } = useApp();
 
   // Load initial state from localStorage or use defaults
   const [syncConfig, setSyncConfig] = useState(() => {
@@ -88,13 +88,32 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleMigrate = async () => {
+  const handleMigrate = async (force: boolean = false) => {
+    console.log('[Settings] handleMigrate called, force:', force);
+    console.log('[Settings] Using cached accessToken:', !!supabaseAccessToken, 'userId:', supabaseUserId);
     setIsMigrating(true);
     setMigrationProgress(null);
 
+    // If forcing, reset the migration flag first
+    if (force) {
+      resetMigrationFlag();
+      setMigrationDone(false);
+    }
+
+    // Use access token from context (already cached from auth init)
+    if (!supabaseAccessToken) {
+      console.error('[Settings] No access token in context!');
+      showNotification('error', 'Not authenticated. Please refresh and try again.');
+      setIsMigrating(false);
+      return;
+    }
+
+    console.log('[Settings] About to call migrateToSupabase...');
     const result = await migrateToSupabase((progress) => {
+      console.log('[Settings] Migration progress:', progress);
       setMigrationProgress(progress);
-    }, supabaseUserId || undefined);
+    }, supabaseUserId || undefined, force, supabaseAccessToken);
+    console.log('[Settings] migrateToSupabase returned:', result);
 
     if (result.success) {
       setMigrationDone(true);
@@ -419,6 +438,59 @@ const Settings: React.FC = () => {
           <div className="settings-group">
             <h4>Data</h4>
 
+            {/* Data Sync Status Indicator */}
+            <div className="setting-item" style={{
+              borderLeft: dataSyncStatus.source === 'supabase' ? '4px solid #2196F3' : '4px solid #9e9e9e',
+              paddingLeft: '16px',
+              backgroundColor: dataSyncStatus.source === 'supabase' ? '#e3f2fd' : '#f5f5f5'
+            }}>
+              <div className="setting-info">
+                <h5>
+                  {dataSyncStatus.isLoading ? '⏳ Syncing...' :
+                   dataSyncStatus.source === 'supabase' ? '☁️ Cloud Connected' :
+                   dataSyncStatus.source === 'localStorage' ? '💾 Local Storage' : '⚠️ No Data Source'}
+                </h5>
+                <p>
+                  {dataSyncStatus.isLoading ? 'Loading your data from the cloud...' :
+                   dataSyncStatus.source === 'supabase' ? 'Data syncs across all your devices in real-time' :
+                   dataSyncStatus.source === 'localStorage' ? 'Data is stored locally on this device only' :
+                   'Sign in to enable cloud sync'}
+                </p>
+                {dataSyncStatus.lastSynced && (
+                  <p style={{ fontSize: '0.85em', color: '#666', marginTop: '4px' }}>
+                    Last synced: {dataSyncStatus.lastSynced.toLocaleTimeString()}
+                  </p>
+                )}
+                {dataSyncStatus.error && (
+                  <p style={{ fontSize: '0.85em', color: '#d32f2f', marginTop: '4px' }}>
+                    ⚠️ {dataSyncStatus.error}
+                  </p>
+                )}
+              </div>
+              {dataSyncStatus.source === 'supabase' && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 12px',
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  borderRadius: '12px',
+                  fontSize: '0.85em',
+                  fontWeight: '500'
+                }}>
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#fff',
+                    animation: 'pulse 2s infinite'
+                  }}></span>
+                  Live
+                </span>
+              )}
+            </div>
+
             {!migrationDone && (
               <div className="setting-item" style={{ borderLeft: '4px solid #4CAF50', paddingLeft: '16px', backgroundColor: '#f0f8f0' }}>
                 <div className="setting-info">
@@ -454,7 +526,7 @@ const Settings: React.FC = () => {
                 </div>
                 <button
                   className="btn btn-primary"
-                  onClick={handleMigrate}
+                  onClick={() => handleMigrate(false)}
                   disabled={isMigrating}
                   style={{ whiteSpace: 'nowrap' }}
                 >
@@ -475,7 +547,30 @@ const Settings: React.FC = () => {
                 <div className="setting-info">
                   <h5>✅ Cloud Storage Enabled</h5>
                   <p>Your data is synced to Supabase and backed up in the cloud</p>
+                  <p style={{ fontSize: '0.85em', color: '#666', marginTop: '8px' }}>
+                    Local data: {events.length} events, {birthdays.length} birthdays
+                  </p>
+                  {migrationProgress && (
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ fontSize: '0.9em', color: '#666' }}>{migrationProgress.message}</p>
+                    </div>
+                  )}
                 </div>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleMigrate(true)}
+                  disabled={isMigrating}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {isMigrating ? (
+                    <>
+                      <span className="spinner"></span>
+                      Syncing...
+                    </>
+                  ) : (
+                    '🔄 Re-sync'
+                  )}
+                </button>
               </div>
             )}
 
