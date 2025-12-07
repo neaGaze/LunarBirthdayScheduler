@@ -194,9 +194,41 @@ async function uploadBirthdays(
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+  // First, fetch existing birthdays to avoid duplicates
+  let existingBirthdays: Set<string> = new Set();
+  try {
+    const existingResponse = await fetch(
+      `${supabaseUrl}/rest/v1/birthdays?user_id=eq.${userId}&select=name,nepali_month,nepali_day`,
+      {
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    if (existingResponse.ok) {
+      const existing = await existingResponse.json();
+      // Create a key from name + date to check duplicates
+      existingBirthdays = new Set(existing.map((b: { name: string; nepali_month: number; nepali_day: number }) =>
+        `${b.name}_${b.nepali_month}_${b.nepali_day}`
+      ));
+      console.log('[Migration] Found', existingBirthdays.size, 'existing birthdays');
+    }
+  } catch (e) {
+    console.warn('[Migration] Could not fetch existing birthdays:', e);
+  }
+
   for (let i = 0; i < birthdays.length; i++) {
     const birthday = birthdays[i];
     console.log('[Migration] Processing birthday', i + 1, ':', birthday.name);
+
+    // Check for duplicate
+    const birthdayKey = `${birthday.name}_${birthday.nepaliDate.month}_${birthday.nepaliDate.day}`;
+    if (existingBirthdays.has(birthdayKey)) {
+      console.log('[Migration] Skipping duplicate birthday:', birthday.name);
+      onProgress(i + 1, birthdays.length);
+      continue;
+    }
 
     try {
       const dbBirthday = SupabaseService.birthdayToDb(birthday, userId);
