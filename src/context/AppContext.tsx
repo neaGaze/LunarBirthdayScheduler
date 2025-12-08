@@ -252,9 +252,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         showNotification('success', `Birthday for "${birthday.name}" added successfully`);
+
+        // Auto-sync to Google Calendar if authenticated
+        if (syncService && googleCalendarService) {
+          try {
+            const calendarId = localStorage.getItem('nepali_calendar_id') || 'primary';
+            const savedConfig = localStorage.getItem('nepali_sync_config');
+            const config = savedConfig ? JSON.parse(savedConfig) : {
+              calendarId,
+              syncFestivals: true,
+              syncCustomEvents: true,
+              syncBirthdays: true,
+              daysInAdvance: 90,
+              maxBirthdaysToSync: 3,
+            };
+            config.calendarId = calendarId;
+
+            console.log('[Auto-sync] Syncing new birthday to Google Calendar...');
+            const result = await syncService.syncToGoogleCalendar(config);
+            if (result.failureCount === 0) {
+              console.log('[Auto-sync] Birthday synced to Google Calendar');
+            } else {
+              console.warn('[Auto-sync] Some events failed to sync:', result.errors);
+            }
+          } catch (error) {
+            console.error('[Auto-sync] Failed to sync to Google Calendar:', error);
+          }
+        }
       }
     },
-    [birthdays, nepaliEventService, supabaseUserId, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, showNotification, syncService, googleCalendarService]
   );
 
   const updateBirthday = useCallback(
@@ -281,10 +308,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           showNotification('success', 'Birthday updated successfully');
+
+          // Auto-sync to Google Calendar if authenticated
+          if (syncService && googleCalendarService) {
+            try {
+              const calendarId = localStorage.getItem('nepali_calendar_id') || 'primary';
+              const savedConfig = localStorage.getItem('nepali_sync_config');
+              const config = savedConfig ? JSON.parse(savedConfig) : {
+                calendarId,
+                syncFestivals: true,
+                syncCustomEvents: true,
+                syncBirthdays: true,
+                daysInAdvance: 90,
+                maxBirthdaysToSync: 3,
+              };
+              config.calendarId = calendarId;
+
+              console.log('[Auto-sync] Syncing updated birthday to Google Calendar...');
+              const result = await syncService.syncToGoogleCalendar(config);
+              if (result.failureCount === 0) {
+                console.log('[Auto-sync] Birthday synced to Google Calendar');
+              } else {
+                console.warn('[Auto-sync] Some events failed to sync:', result.errors);
+              }
+            } catch (error) {
+              console.error('[Auto-sync] Failed to sync to Google Calendar:', error);
+            }
+          }
         }
       }
     },
-    [birthdays, nepaliEventService, supabaseUserId, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, showNotification, syncService, googleCalendarService]
   );
 
   const deleteBirthday = useCallback(
