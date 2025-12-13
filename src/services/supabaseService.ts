@@ -221,16 +221,48 @@ export async function getOrCreateUser(googleId: string, email: string, name?: st
 // EVENT CRUD OPERATIONS
 // ============================================
 
-export async function createEvent(event: NepaliCalendarEvent, userId: string) {
-  const dbEvent = eventToDb(event, userId);
-  const { data, error } = await supabase
-    .from('events')
-    .insert(dbEvent)
-    .select()
-    .single();
+export async function createEvent(event: NepaliCalendarEvent, userId: string, accessToken?: string) {
+  console.log('[SupabaseService.createEvent] Starting...', { eventId: event.id, userId, hasToken: !!accessToken });
 
-  if (error) throw error;
-  return dbToEvent(data);
+  const dbEvent = eventToDb(event, userId);
+
+  // Use passed token or try to get from session
+  let token = accessToken;
+  if (!token) {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token;
+  }
+
+  if (!token) {
+    throw new Error('No access token available');
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  console.log('[SupabaseService.createEvent] Making fetch request...');
+  const response = await fetch(`${supabaseUrl}/rest/v1/events`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': anonKey,
+      'Authorization': `Bearer ${token}`,
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(dbEvent)
+  });
+
+  console.log('[SupabaseService.createEvent] Response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SupabaseService.createEvent] Error:', errorText);
+    throw new Error(`Failed to create event: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('[SupabaseService.createEvent] Success:', data);
+  return dbToEvent(Array.isArray(data) ? data[0] : data);
 }
 
 export async function getEvents(userId: string) {
@@ -280,9 +312,40 @@ export async function updateEvent(eventId: string, updates: Partial<NepaliCalend
   return dbToEvent(data);
 }
 
-export async function deleteEvent(eventId: string) {
-  const { error } = await supabase.from('events').delete().eq('id', eventId);
-  if (error) throw error;
+export async function deleteEvent(eventId: string, accessToken?: string) {
+  console.log('[SupabaseService.deleteEvent] Deleting:', eventId);
+
+  // Use passed token or try to get from session
+  let token = accessToken;
+  if (!token) {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token;
+  }
+
+  if (!token) {
+    throw new Error('No access token available');
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/events?id=eq.${eventId}`, {
+    method: 'DELETE',
+    headers: {
+      'apikey': anonKey,
+      'Authorization': `Bearer ${token}`,
+    }
+  });
+
+  console.log('[SupabaseService.deleteEvent] Response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SupabaseService.deleteEvent] Error:', errorText);
+    throw new Error(`Failed to delete event: ${errorText}`);
+  }
+
+  console.log('[SupabaseService.deleteEvent] Success');
 }
 
 // ============================================

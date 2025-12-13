@@ -125,15 +125,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addEvent = useCallback(
     async (event: Omit<NepaliCalendarEvent, 'id' | 'gregorianDate'>) => {
+      console.log('[addEvent] Called, supabaseUserId:', supabaseUserId);
       if (nepaliEventService) {
         const newEvent = nepaliEventService.addEvent(event);
+        console.log('[addEvent] Created event with id:', newEvent.id);
         const updated = [...events, newEvent];
         setEvents(updated);
 
         // If authenticated, Supabase is primary; localStorage is cache
-        if (supabaseUserId) {
+        if (supabaseUserId && supabaseAccessToken) {
           try {
-            await SupabaseService.createEvent(newEvent, supabaseUserId);
+            console.log('[addEvent] Saving to Supabase...');
+            await SupabaseService.createEvent(newEvent, supabaseUserId, supabaseAccessToken);
             console.log('[Supabase] Event saved:', newEvent.id);
             // Update localStorage cache
             localStorage.setItem('nepali_events', JSON.stringify(updated));
@@ -144,13 +147,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } else {
           // Not authenticated - localStorage only
+          console.log('[addEvent] No supabaseUserId, saving to localStorage only');
           localStorage.setItem('nepali_events', JSON.stringify(updated));
         }
 
         showNotification('success', `Event "${event.title}" created successfully`);
       }
     },
-    [events, nepaliEventService, supabaseUserId, showNotification]
+    [events, nepaliEventService, supabaseUserId, supabaseAccessToken, showNotification]
   );
 
   const updateEvent = useCallback(
@@ -185,15 +189,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteEvent = useCallback(
     async (id: string) => {
+      console.log('[deleteEvent] Called with id:', id, 'supabaseUserId:', supabaseUserId);
       if (nepaliEventService) {
         nepaliEventService.deleteEvent(id);
         const newEvents = events.filter((e) => e.id !== id);
         setEvents(newEvents);
 
         // If authenticated, Supabase is primary; localStorage is cache
-        if (supabaseUserId) {
+        if (supabaseUserId && supabaseAccessToken) {
           try {
-            await SupabaseService.deleteEvent(id);
+            console.log('[deleteEvent] Deleting from Supabase...');
+            await SupabaseService.deleteEvent(id, supabaseAccessToken);
             console.log('[Supabase] Event deleted:', id);
             localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           } catch (error) {
@@ -202,6 +208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('nepali_events', JSON.stringify(newEvents));
           }
         } else {
+          console.log('[deleteEvent] No supabaseUserId/token, only deleting locally');
           localStorage.setItem('nepali_events', JSON.stringify(newEvents));
         }
 
@@ -226,7 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showNotification('success', 'Event deleted successfully');
       }
     },
-    [events, nepaliEventService, supabaseUserId, syncService, googleCalendarService, showNotification]
+    [events, nepaliEventService, supabaseUserId, supabaseAccessToken, syncService, googleCalendarService, showNotification]
   );
 
   const addBirthday = useCallback(

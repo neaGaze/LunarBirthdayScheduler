@@ -136,7 +136,7 @@ export class NepaliEventService {
    * Add a custom Nepali event
    */
   addEvent(event: Omit<NepaliCalendarEvent, 'id' | 'gregorianDate'>): NepaliCalendarEvent {
-    const id = `event_${Date.now()}`;
+    const id = crypto.randomUUID();
     const gregorianDate = nepaliToGregorian(event.nepaliDate);
 
     const newEvent: NepaliCalendarEvent = {
@@ -189,7 +189,7 @@ export class NepaliEventService {
    * Add a lunar birthday
    */
   addLunarBirthday(birthday: Omit<LunarBirthday, 'id'>): LunarBirthday {
-    const id = `birthday_${Date.now()}`;
+    const id = crypto.randomUUID();
     const newBirthday: LunarBirthday = {
       ...birthday,
       id

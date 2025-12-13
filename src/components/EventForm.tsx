@@ -4,7 +4,7 @@ import { nepaliToGregorian, gregorianToNepali } from '../utils/nepaliCalendar.js
 import './EventForm.css';
 
 const EventForm: React.FC = () => {
-  const { addEvent, events } = useApp();
+  const { addEvent, deleteEvent, events } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [calendarType, setCalendarType] = useState<'nepali' | 'gregorian'>('nepali');
   const [formData, setFormData] = useState({
@@ -104,11 +104,24 @@ const EventForm: React.FC = () => {
                   </p>
                   {event.description && <p className="event-desc">{event.description}</p>}
                 </div>
-                {event.reminder?.enabled && (
-                  <div className="event-reminder">
-                    🔔 {event.reminder.minutesBefore === 1440 ? '1 day' : `${event.reminder.minutesBefore} min`} before
-                  </div>
-                )}
+                <div className="event-actions">
+                  {event.reminder?.enabled && (
+                    <div className="event-reminder">
+                      🔔 {event.reminder.minutesBefore === 1440 ? '1 day' : `${event.reminder.minutesBefore} min`} before
+                    </div>
+                  )}
+                  <button
+                    className="btn-delete"
+                    onClick={() => {
+                      if (confirm(`Delete "${event.title}"?`)) {
+                        deleteEvent(event.id);
+                      }
+                    }}
+                    title="Delete event"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

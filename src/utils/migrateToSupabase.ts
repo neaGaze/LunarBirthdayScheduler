@@ -130,25 +130,25 @@ async function uploadEvents(
       const event = events[i];
       const dbEvent = SupabaseService.eventToDb(event, userId);
 
-      // Generate a proper UUID for the id field (DB expects UUID, not string like "event_123")
-      const newId = crypto.randomUUID();
+      // Use existing ID if it's already a UUID, otherwise generate new one
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.id);
       const eventData = {
         ...dbEvent,
-        id: newId  // Override with proper UUID
+        id: isUUID ? event.id : crypto.randomUUID()
       };
 
       if (!accessToken) {
         console.error('[Migration] No access token for events!');
         errors.push(`Event "${event.title}": No access token`);
       } else {
-        console.log('[Migration] Inserting event via fetch:', event.title);
+        console.log('[Migration] Upserting event via fetch:', event.title);
         const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/events`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': anonKey,
             'Authorization': `Bearer ${accessToken}`,
-            'Prefer': 'return=minimal'
+            'Prefer': 'resolution=merge-duplicates,return=minimal'
           },
           body: JSON.stringify(eventData)
         });
@@ -233,27 +233,28 @@ async function uploadBirthdays(
     try {
       const dbBirthday = SupabaseService.birthdayToDb(birthday, userId);
 
-      // Generate a proper UUID for the id field (DB expects UUID, not string like "birthday_123")
-      const newId = crypto.randomUUID();
+      // Use existing ID if it's already a UUID, otherwise generate new one
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(birthday.id);
+      const finalId = isUUID ? birthday.id : crypto.randomUUID();
       const birthdayData = {
         ...dbBirthday,
-        id: newId  // Override with proper UUID
+        id: finalId
       };
-      console.log('[Migration] Converted to DB with new UUID:', { id: newId, name: birthdayData.name });
+      console.log('[Migration] Converted to DB:', { id: finalId, name: birthdayData.name, wasUUID: isUUID });
 
       if (!accessToken) {
         console.error('[Migration] No access token available!');
         errors.push(`Birthday "${birthday.name}": No access token`);
       } else {
         try {
-          console.log('[Migration] Inserting birthday via fetch...');
+          console.log('[Migration] Upserting birthday via fetch...');
           const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/birthdays`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'apikey': anonKey,
               'Authorization': `Bearer ${accessToken}`,
-              'Prefer': 'return=minimal'
+              'Prefer': 'resolution=merge-duplicates,return=minimal'
             },
             body: JSON.stringify(birthdayData)
           });
