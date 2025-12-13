@@ -71,6 +71,7 @@ export interface DbUserSettings {
   sync_birthdays: boolean;
   days_in_advance: number;
   max_birthdays_to_sync: number;
+  event_sync_years: number;
   updated_at: string;
 }
 

@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { nepaliToGregorian } from '../utils/nepaliCalendar.js';
+import { nepaliToGregorian, gregorianToNepali } from '../utils/nepaliCalendar.js';
 import './EventForm.css';
 
 const EventForm: React.FC = () => {
   const { addEvent, events } = useApp();
   const [showForm, setShowForm] = useState(false);
+  const [calendarType, setCalendarType] = useState<'nepali' | 'gregorian'>('nepali');
   const [formData, setFormData] = useState({
     title: '',
     nepaliYear: 2081,
     nepaliMonth: 1,
     nepaliDay: 1,
+    gregorianDate: '',
     description: '',
     isLunar: false,
     reminderEnabled: true,
@@ -36,13 +38,23 @@ const EventForm: React.FC = () => {
     }
 
     try {
-      const nepaliDate = {
-        year: formData.nepaliYear,
-        month: formData.nepaliMonth,
-        day: formData.nepaliDay,
-      };
+      let nepaliDate;
 
-      const gregorianDate = nepaliToGregorian(nepaliDate);
+      if (calendarType === 'nepali') {
+        nepaliDate = {
+          year: formData.nepaliYear,
+          month: formData.nepaliMonth,
+          day: formData.nepaliDay,
+        };
+      } else {
+        // Convert Gregorian to Nepali
+        if (!formData.gregorianDate) {
+          alert('Please select a date');
+          return;
+        }
+        const [year, month, day] = formData.gregorianDate.split('-').map(Number);
+        nepaliDate = gregorianToNepali({ year, month, day });
+      }
 
       addEvent({
         title: formData.title,
@@ -62,6 +74,7 @@ const EventForm: React.FC = () => {
         nepaliYear: 2081,
         nepaliMonth: 1,
         nepaliDay: 1,
+        gregorianDate: '',
         description: '',
         isLunar: false,
         reminderEnabled: true,
@@ -135,46 +148,79 @@ const EventForm: React.FC = () => {
               />
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="nepaliYear">Year (BS)</label>
-                <input
-                  type="number"
-                  id="nepaliYear"
-                  name="nepaliYear"
-                  value={formData.nepaliYear}
-                  onChange={handleInputChange}
-                  min="1992"
-                  max="2090"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="nepaliMonth">Month (1-12)</label>
-                <input
-                  type="number"
-                  id="nepaliMonth"
-                  name="nepaliMonth"
-                  value={formData.nepaliMonth}
-                  onChange={handleInputChange}
-                  min="1"
-                  max="12"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="nepaliDay">Day</label>
-                <input
-                  type="number"
-                  id="nepaliDay"
-                  name="nepaliDay"
-                  value={formData.nepaliDay}
-                  onChange={handleInputChange}
-                  min="1"
-                  max="32"
-                />
+            <div className="form-group">
+              <label>Calendar Type</label>
+              <div className="calendar-type-toggle">
+                <button
+                  type="button"
+                  className={`toggle-btn ${calendarType === 'nepali' ? 'active' : ''}`}
+                  onClick={() => setCalendarType('nepali')}
+                >
+                  Nepali (BS)
+                </button>
+                <button
+                  type="button"
+                  className={`toggle-btn ${calendarType === 'gregorian' ? 'active' : ''}`}
+                  onClick={() => setCalendarType('gregorian')}
+                >
+                  Gregorian (AD)
+                </button>
               </div>
             </div>
+
+            {calendarType === 'nepali' ? (
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="nepaliYear">Year (BS)</label>
+                  <input
+                    type="number"
+                    id="nepaliYear"
+                    name="nepaliYear"
+                    value={formData.nepaliYear}
+                    onChange={handleInputChange}
+                    min="1992"
+                    max="2090"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="nepaliMonth">Month (1-12)</label>
+                  <input
+                    type="number"
+                    id="nepaliMonth"
+                    name="nepaliMonth"
+                    value={formData.nepaliMonth}
+                    onChange={handleInputChange}
+                    min="1"
+                    max="12"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="nepaliDay">Day</label>
+                  <input
+                    type="number"
+                    id="nepaliDay"
+                    name="nepaliDay"
+                    value={formData.nepaliDay}
+                    onChange={handleInputChange}
+                    min="1"
+                    max="32"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label htmlFor="gregorianDate">Date (AD)</label>
+                <input
+                  type="date"
+                  id="gregorianDate"
+                  name="gregorianDate"
+                  value={formData.gregorianDate}
+                  onChange={handleInputChange}
+                />
+              </div>
+            )}
 
             <div className="form-group checkbox">
               <label htmlFor="isLunar">

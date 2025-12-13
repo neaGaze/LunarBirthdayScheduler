@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { migrateToSupabase, isMigrationDone, resetMigrationFlag, type MigrationProgress } from '../utils/migrateToSupabase';
 import {
@@ -9,9 +9,25 @@ import {
   restoreDataFromImport,
   type ExportData
 } from '../utils/exportData';
+import {
+  getUserSettings,
+  upsertUserSettings,
+  syncConfigToDb,
+  dbToSyncConfig,
+} from '../services/supabaseService';
 import './Settings.css';
 
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
+
+const DEFAULT_SYNC_CONFIG = {
+  calendarId: 'primary',
+  syncFestivals: true,
+  syncCustomEvents: true,
+  syncBirthdays: true,
+  daysInAdvance: 90,
+  maxBirthdaysToSync: 3,
+  eventSyncYears: 1,
+};
 
 const Settings: React.FC = () => {
   const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, supabaseAccessToken, showNotification, dataSyncStatus } = useApp();
@@ -21,19 +37,12 @@ const Settings: React.FC = () => {
     const stored = localStorage.getItem(SYNC_CONFIG_KEY);
     if (stored) {
       try {
-        return JSON.parse(stored);
+        return { ...DEFAULT_SYNC_CONFIG, ...JSON.parse(stored) };
       } catch (e) {
         console.error('Failed to parse stored sync config:', e);
       }
     }
-    return {
-      calendarId: 'primary',
-      syncFestivals: true,
-      syncCustomEvents: true,
-      syncBirthdays: true,
-      daysInAdvance: 90,
-      maxBirthdaysToSync: 3,
-    };
+    return DEFAULT_SYNC_CONFIG;
   });
 
   const [activeTab, setActiveTab] = useState<'sync' | 'settings' | 'about'>('sync');
@@ -44,12 +53,62 @@ const Settings: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Save sync config to localStorage whenever it changes
+  // Load sync config from Supabase when user is authenticated
   useEffect(() => {
-    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(syncConfig));
-  }, [syncConfig]);
+    const loadCloudSettings = async () => {
+      if (!supabaseUserId || settingsLoaded) return;
+
+      setIsLoadingSettings(true);
+      try {
+        const cloudSettings = await getUserSettings(supabaseUserId);
+        if (cloudSettings) {
+          const config = dbToSyncConfig(cloudSettings);
+          setSyncConfig(config);
+          // Also update localStorage
+          localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+          console.log('[Settings] Loaded sync config from cloud');
+        }
+      } catch (error) {
+        console.error('[Settings] Failed to load cloud settings:', error);
+      } finally {
+        setIsLoadingSettings(false);
+        setSettingsLoaded(true);
+      }
+    };
+
+    loadCloudSettings();
+  }, [supabaseUserId, settingsLoaded]);
+
+  // Save sync config to localStorage and Supabase whenever it changes
+  const saveSyncConfig = useCallback(async (config: typeof syncConfig) => {
+    // Always save to localStorage
+    localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+
+    // Save to Supabase if authenticated
+    if (supabaseUserId) {
+      try {
+        await upsertUserSettings(supabaseUserId, syncConfigToDb(config));
+        console.log('[Settings] Saved sync config to cloud');
+      } catch (error) {
+        console.error('[Settings] Failed to save to cloud:', error);
+      }
+    }
+  }, [supabaseUserId]);
+
+  // Debounced save effect
+  useEffect(() => {
+    if (!settingsLoaded) return; // Don't save until initial load is done
+
+    const timeoutId = setTimeout(() => {
+      saveSyncConfig(syncConfig);
+    }, 500); // Debounce 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [syncConfig, saveSyncConfig, settingsLoaded]);
 
   const handleSyncConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -60,7 +119,7 @@ const Settings: React.FC = () => {
       [name]:
         type === 'checkbox'
           ? checked
-          : name === 'daysInAdvance' || name === 'maxBirthdaysToSync'
+          : name === 'daysInAdvance' || name === 'maxBirthdaysToSync' || name === 'eventSyncYears'
             ? parseInt(value)
             : value,
     });
@@ -323,6 +382,23 @@ const Settings: React.FC = () => {
                 <span>future occurrences</span>
               </div>
               <p className="field-desc">Number of future lunar birthday events to sync per person</p>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="eventSyncYears">Custom events sync duration</label>
+              <div className="input-group">
+                <input
+                  type="number"
+                  id="eventSyncYears"
+                  name="eventSyncYears"
+                  value={syncConfig.eventSyncYears}
+                  onChange={handleSyncConfigChange}
+                  min="1"
+                  max="10"
+                />
+                <span>years</span>
+              </div>
+              <p className="field-desc">Number of years to create recurring custom events in Google Calendar</p>
             </div>
 
             <div className="form-group">

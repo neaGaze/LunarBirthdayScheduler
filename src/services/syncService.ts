@@ -6,7 +6,7 @@
 import { GoogleCalendarService } from './googleCalendarService.js';
 import { NepaliEventService, type NepaliCalendarEvent } from './nepaliEventService.js';
 import type { GregorianDate } from '../utils/nepaliCalendar.js';
-import { calculateTithi, gregorianToNepali } from '../utils/nepaliCalendar.js';
+import { calculateTithi, gregorianToNepali, nepaliToGregorian } from '../utils/nepaliCalendar.js';
 
 export interface SyncConfig {
   calendarId: string;
@@ -15,6 +15,7 @@ export interface SyncConfig {
   syncBirthdays: boolean;
   daysInAdvance: number; // Sync events N days in advance
   maxBirthdaysToSync: number; // Max future lunar birthday occurrences to sync
+  eventSyncYears: number; // Number of years to sync custom events for
 }
 
 export interface SyncResult {
@@ -195,7 +196,52 @@ export class SyncService {
       }
 
       if (config.syncCustomEvents) {
-        events.push(...this.nepaliEventService.getEvents());
+        const customEvents = this.nepaliEventService.getEvents();
+        const currentYear = new Date().getFullYear();
+        const yearsToSync = config.eventSyncYears || 1;
+
+        customEvents.forEach(event => {
+          // For each custom event, create entries for N years
+          for (let yearOffset = 0; yearOffset < yearsToSync; yearOffset++) {
+            const targetYear = currentYear + yearOffset;
+
+            // Calculate the Gregorian date for this year based on Nepali date
+            // We need to find what Gregorian date corresponds to this Nepali date in the target year
+            const nepaliYearOffset = targetYear - (event.gregorianDate?.year || currentYear);
+            const targetNepaliYear = event.nepaliDate.year + nepaliYearOffset;
+
+            const targetNepaliDate = {
+              year: targetNepaliYear,
+              month: event.nepaliDate.month,
+              day: event.nepaliDate.day
+            };
+
+            // Convert to Gregorian
+            let targetGregorianDate: GregorianDate;
+            try {
+              targetGregorianDate = nepaliToGregorian(targetNepaliDate);
+            } catch {
+              // If conversion fails, skip this year
+              continue;
+            }
+
+            // Skip past dates
+            const eventDate = new Date(targetGregorianDate.year, targetGregorianDate.month - 1, targetGregorianDate.day);
+            if (eventDate < new Date()) {
+              continue;
+            }
+
+            // Create unique ID for each year's event
+            const eventId = yearsToSync > 1 ? `${event.id}_${targetYear}` : event.id;
+
+            events.push({
+              ...event,
+              id: eventId,
+              nepaliDate: targetNepaliDate,
+              gregorianDate: targetGregorianDate
+            });
+          }
+        });
       }
 
       if (config.syncBirthdays) {

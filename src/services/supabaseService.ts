@@ -387,14 +387,18 @@ export async function deleteSyncMapping(localEventId: string, userId: string) {
 // USER SETTINGS OPERATIONS
 // ============================================
 
-export async function getUserSettings(userId: string) {
+export async function getUserSettings(userId: string): Promise<DbUserSettings | null> {
   const { data, error } = await supabase
     .from('user_settings')
     .select('*')
     .eq('user_id', userId)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // PGRST116 = no rows returned, which is fine for new users
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
   return data;
 }
 
@@ -408,4 +412,60 @@ export async function updateUserSettings(userId: string, updates: DbUserSettings
 
   if (error) throw error;
   return data;
+}
+
+export async function upsertUserSettings(userId: string, settings: Omit<DbUserSettingsInsert, 'user_id'>) {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .upsert({
+      user_id: userId,
+      ...settings,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Helper to convert app sync config to DB format
+export function syncConfigToDb(config: {
+  calendarId: string;
+  syncFestivals: boolean;
+  syncCustomEvents: boolean;
+  syncBirthdays: boolean;
+  daysInAdvance: number;
+  maxBirthdaysToSync: number;
+  eventSyncYears: number;
+}): Omit<DbUserSettingsInsert, 'user_id'> {
+  return {
+    calendar_id: config.calendarId,
+    sync_festivals: config.syncFestivals,
+    sync_custom_events: config.syncCustomEvents,
+    sync_birthdays: config.syncBirthdays,
+    days_in_advance: config.daysInAdvance,
+    max_birthdays_to_sync: config.maxBirthdaysToSync,
+    event_sync_years: config.eventSyncYears,
+  };
+}
+
+// Helper to convert DB settings to app sync config
+export function dbToSyncConfig(settings: DbUserSettings): {
+  calendarId: string;
+  syncFestivals: boolean;
+  syncCustomEvents: boolean;
+  syncBirthdays: boolean;
+  daysInAdvance: number;
+  maxBirthdaysToSync: number;
+  eventSyncYears: number;
+} {
+  return {
+    calendarId: settings.calendar_id,
+    syncFestivals: settings.sync_festivals,
+    syncCustomEvents: settings.sync_custom_events,
+    syncBirthdays: settings.sync_birthdays,
+    daysInAdvance: settings.days_in_advance,
+    maxBirthdaysToSync: settings.max_birthdays_to_sync,
+    eventSyncYears: settings.event_sync_years,
+  };
 }
