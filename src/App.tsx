@@ -12,7 +12,7 @@ import './App.css';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, activeTab, setActiveTab } = useApp();
-  const isCallbackPath = window.location.pathname === '/callback';
+  const isCallbackPath = window.location.pathname === '/auth/callback' || window.location.pathname === '/callback';
 
   // Handle OAuth callback
   if (isCallbackPath) {
