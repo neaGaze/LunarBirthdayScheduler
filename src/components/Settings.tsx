@@ -30,7 +30,7 @@ const DEFAULT_SYNC_CONFIG = {
 };
 
 const Settings: React.FC = () => {
-  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, supabaseAccessToken, showNotification, dataSyncStatus } = useApp();
+  const { logout, isSyncing, syncResult, syncEvents, festivals, events, birthdays, supabaseUserId, supabaseAccessToken, showNotification, dataSyncStatus, isAuthenticated, hasGoogleCalendarAccess, reconnectGoogleCalendar } = useApp();
 
   // Load initial state from localStorage or use defaults
   const [syncConfig, setSyncConfig] = useState(() => {
@@ -415,6 +415,24 @@ const Settings: React.FC = () => {
             </div>
           </div>
 
+          {/* Google Calendar Access Warning */}
+          {isAuthenticated && !hasGoogleCalendarAccess && (
+            <div className="sync-result warning" style={{ backgroundColor: '#fff3cd', borderColor: '#ffc107' }}>
+              <div className="result-icon">⚠️</div>
+              <div className="result-content">
+                <h5>Google Calendar Session Expired</h5>
+                <p>Your Google Calendar access token has expired. Please reconnect to sync events.</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={reconnectGoogleCalendar}
+                  style={{ marginTop: '12px' }}
+                >
+                  🔗 Reconnect Google Calendar
+                </button>
+              </div>
+            </div>
+          )}
+
           {syncResult && (
             <div className={`sync-result ${syncResult.failed === 0 ? 'success' : 'warning'}`}>
               <div className="result-icon">
@@ -444,7 +462,7 @@ const Settings: React.FC = () => {
           <button
             className="btn btn-primary btn-large"
             onClick={handleSync}
-            disabled={isSyncing}
+            disabled={isSyncing || !hasGoogleCalendarAccess}
           >
             {isSyncing ? (
               <>

@@ -18,10 +18,12 @@ interface SyncStatus {
 interface AppContextType {
   // Authentication
   isAuthenticated: boolean;
+  hasGoogleCalendarAccess: boolean;
   user: { email?: string } | null;
   supabaseUserId: string | null;
   supabaseAccessToken: string | null;
   logout: () => void;
+  reconnectGoogleCalendar: () => Promise<void>;
 
   // Services
   googleCalendarService: GoogleCalendarService | null;
@@ -60,6 +62,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasGoogleCalendarAccess, setHasGoogleCalendarAccess] = useState(false);
   const [user, setUser] = useState<{ email?: string } | null>(null);
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [supabaseAccessToken, setSupabaseAccessToken] = useState<string | null>(null);
@@ -117,10 +120,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGoogleCalendarService(null);
     setSyncService(null);
     setIsAuthenticated(false);
+    setHasGoogleCalendarAccess(false);
     setUser(null);
     setSupabaseUserId(null);
     showNotification('info', 'Logged out successfully');
     console.log('[AppContext] Logout complete');
+  }, [showNotification]);
+
+  // Re-authenticate with Google Calendar when token expired
+  const reconnectGoogleCalendar = useCallback(async () => {
+    console.log('[AppContext] Reconnecting Google Calendar...');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/calendar',
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+      if (error) {
+        console.error('[AppContext] Reconnect error:', error);
+        showNotification('error', 'Failed to reconnect Google Calendar');
+      }
+    } catch (error) {
+      console.error('[AppContext] Reconnect error:', error);
+      showNotification('error', 'Failed to reconnect Google Calendar');
+    }
   }, [showNotification]);
 
   const addEvent = useCallback(
@@ -444,7 +473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncEvents = useCallback(
     async (config: SyncConfig) => {
       if (!syncService || !googleCalendarService || !nepaliEventService) {
-        showNotification('error', 'Not authenticated. Please log in first.');
+        showNotification('error', 'Google Calendar session expired. Please reconnect.');
         return;
       }
 
@@ -568,11 +597,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
             gcService.setAccessToken(session.provider_token);
             setGoogleCalendarService(gcService);
+            setHasGoogleCalendarAccess(true);
 
             // Initialize sync service
             const newSyncService = new SyncService(gcService, nepaliEventService);
             setSyncService(newSyncService);
             console.log('[Google Calendar] Services initialized from existing session');
+          } else {
+            console.warn('[Google Calendar] No provider token - Google Calendar access unavailable');
+            setHasGoogleCalendarAccess(false);
+            setGoogleCalendarService(null);
+            setSyncService(null);
           }
         } else {
           // No auth session - don't use Supabase
@@ -609,11 +644,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           gcService.setAccessToken(session.provider_token);
           setGoogleCalendarService(gcService);
+          setHasGoogleCalendarAccess(true);
 
           // Initialize sync service
           const newSyncService = new SyncService(gcService, nepaliEventService);
           setSyncService(newSyncService);
           console.log('[Google Calendar] Services initialized');
+        } else {
+          console.warn('[Google Calendar] No provider token - Google Calendar access unavailable');
+          setHasGoogleCalendarAccess(false);
+          setGoogleCalendarService(null);
+          setSyncService(null);
         }
 
         // Ensure user exists in users table (for foreign key constraint)
@@ -650,6 +691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[Supabase] No authenticated user');
         setSupabaseUserId(null);
         setIsAuthenticated(false);
+        setHasGoogleCalendarAccess(false);
         setUser(null);
         setGoogleCalendarService(null);
         setSyncService(null);
@@ -861,10 +903,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const value: AppContextType = {
     isAuthenticated,
+    hasGoogleCalendarAccess,
     user,
     supabaseUserId,
     supabaseAccessToken,
     logout,
+    reconnectGoogleCalendar,
     googleCalendarService,
     nepaliEventService,
     syncService,

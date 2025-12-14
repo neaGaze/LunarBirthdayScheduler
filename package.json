@@ -1,6 +1,6 @@
 {
   "name": "nepali-calendar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nepali Calendar Google Calendar Plugin",
   "type": "module",
   "main": "src/index.ts",
