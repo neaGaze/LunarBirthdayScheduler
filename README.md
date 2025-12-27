@@ -249,6 +249,40 @@ For production use, consider adding a backend database for:
 - **Tithi**: Lunar day (1-30), doesn't align with calendar days
 - **Lunar Year**: ~354 days vs Gregorian ~365 days
 
+## Deployment
+
+### Automatic Deployment to Vercel
+
+This project is configured for automatic deployment to Vercel:
+
+✅ **Auto-deploy on merge to `main`** - Every merge triggers a production deployment
+✅ **Preview deployments** - Every PR gets a unique preview URL
+✅ **Pre-configured build settings** - `vercel.json` is already set up
+
+**Quick Setup:**
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Import this repository
+3. Add environment variables (see below)
+4. Deploy!
+
+**Required Environment Variables:**
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+```
+
+📖 **Full deployment guide**: See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions
+
+### Manual Deployment
+
+```bash
+# Build for production
+npm run build
+
+# Output will be in dist-web/
+# Deploy dist-web/ to any static hosting service
+```
+
 ## Browser Support
 
 - Chrome/Chromium 90+
