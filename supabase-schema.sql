@@ -111,6 +111,7 @@ CREATE TABLE user_settings (
   sync_birthdays BOOLEAN DEFAULT TRUE,
   days_in_advance INTEGER DEFAULT 90,
   max_birthdays_to_sync INTEGER DEFAULT 3,
+  event_sync_years INTEGER DEFAULT 1,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -128,75 +129,79 @@ ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 -- Users table policies
 CREATE POLICY "Users can view own profile"
   ON users FOR SELECT
-  USING (auth.uid()::text = id::text);
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile"
+  ON users FOR INSERT
+  WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update own profile"
   ON users FOR UPDATE
-  USING (auth.uid()::text = id::text);
+  USING (auth.uid() = id);
 
 -- Events table policies
 CREATE POLICY "Users can view own events"
   ON events FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own events"
   ON events FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own events"
   ON events FOR UPDATE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own events"
   ON events FOR DELETE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 -- Birthdays table policies
 CREATE POLICY "Users can view own birthdays"
   ON birthdays FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own birthdays"
   ON birthdays FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own birthdays"
   ON birthdays FOR UPDATE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own birthdays"
   ON birthdays FOR DELETE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 -- Sync mappings table policies
 CREATE POLICY "Users can view own sync mappings"
   ON sync_mappings FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own sync mappings"
   ON sync_mappings FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own sync mappings"
   ON sync_mappings FOR UPDATE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own sync mappings"
   ON sync_mappings FOR DELETE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 -- User settings table policies
 CREATE POLICY "Users can view own settings"
   ON user_settings FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert own settings"
   ON user_settings FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own settings"
   ON user_settings FOR UPDATE
-  USING (auth.uid()::text = user_id::text);
+  USING (auth.uid() = user_id);
 
 -- ============================================
 -- FUNCTIONS & TRIGGERS
