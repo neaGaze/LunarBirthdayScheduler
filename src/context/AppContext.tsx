@@ -786,16 +786,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loadFromLocalStorage = () => {
       try {
         const savedEvents = localStorage.getItem('nepali_events');
-        if (savedEvents) {
-          setEvents(JSON.parse(savedEvents));
-        }
+        setEvents(savedEvents ? JSON.parse(savedEvents) : []);
 
         const savedBirthdays = localStorage.getItem('nepali_birthdays');
-        if (savedBirthdays) {
-          setBirthdays(JSON.parse(savedBirthdays));
-        }
+        setBirthdays(savedBirthdays ? JSON.parse(savedBirthdays) : []);
       } catch (error) {
         console.error('[AppContext] Error loading from localStorage:', error);
+        // On error, explicitly set to empty arrays to ensure clean state
+        setEvents([]);
+        setBirthdays([]);
       }
     };
 
