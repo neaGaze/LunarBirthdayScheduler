@@ -861,7 +861,7 @@ const Settings: React.FC = () => {
 
             <div className="about-footer">
               <p>
-                <strong>Version:</strong> 1.0.0
+                <strong>Version:</strong> 1.1.0
               </p>
               <p>
                 <strong>Built with:</strong> React, TypeScript, Google Calendar API
