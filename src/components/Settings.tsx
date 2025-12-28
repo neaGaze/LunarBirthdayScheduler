@@ -15,6 +15,7 @@ import {
   syncConfigToDb,
   dbToSyncConfig,
 } from '../services/supabaseService';
+import packageJson from '../../package.json';
 import './Settings.css';
 
 const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
@@ -861,7 +862,7 @@ const Settings: React.FC = () => {
 
             <div className="about-footer">
               <p>
-                <strong>Version:</strong> 1.1.0
+                <strong>Version:</strong> {packageJson.version}
               </p>
               <p>
                 <strong>Built with:</strong> React, TypeScript, Google Calendar API
