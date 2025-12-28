@@ -6,6 +6,18 @@
 import * as SupabaseService from '../services/supabaseService';
 import type { NepaliCalendarEvent, LunarBirthday } from '../services/nepaliEventService';
 
+const SYNC_CONFIG_KEY = 'nepali_calendar_sync_config';
+
+const DEFAULT_SYNC_CONFIG = {
+  calendarId: 'primary',
+  syncFestivals: true,
+  syncCustomEvents: true,
+  syncBirthdays: true,
+  daysInAdvance: 90,
+  maxBirthdaysToSync: 3,
+  eventSyncYears: 1,
+};
+
 export interface MigrationProgress {
   status: 'idle' | 'loading' | 'processing' | 'success' | 'error';
   step: 'checking' | 'reading' | 'uploading' | 'complete';
@@ -306,6 +318,41 @@ async function uploadSyncMappings(
 }
 
 /**
+ * Upload user settings (sync config) to Supabase
+ */
+async function uploadUserSettings(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Load sync config from localStorage
+    const stored = localStorage.getItem(SYNC_CONFIG_KEY);
+    let syncConfig = DEFAULT_SYNC_CONFIG;
+
+    if (stored) {
+      try {
+        syncConfig = { ...DEFAULT_SYNC_CONFIG, ...JSON.parse(stored) };
+        console.log('[Migration] Found sync config in localStorage:', syncConfig);
+      } catch (e) {
+        console.error('[Migration] Failed to parse stored sync config:', e);
+      }
+    } else {
+      console.log('[Migration] No sync config in localStorage, using defaults');
+    }
+
+    // Convert and save to Supabase
+    const dbSettings = SupabaseService.syncConfigToDb(syncConfig);
+    await SupabaseService.upsertUserSettings(userId, dbSettings);
+    console.log('[Migration] Saved user settings to Supabase');
+
+    return { success: true };
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.error('[Migration] Failed to upload user settings:', errorMsg);
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
  * Main migration function
  * Migrates all localStorage data to Supabase
  * @param onProgress - Progress callback
@@ -431,6 +478,22 @@ export async function migrateToSupabase(
     const mappingsResult = await uploadSyncMappings(currentUserId, syncMappings, accessToken);
     console.log('[Migration] Sync mappings result:', mappingsResult);
     errors.push(...mappingsResult.errors);
+
+    // Step 5: Upload user settings (sync config)
+    updateProgress({
+      status: 'processing',
+      step: 'uploading',
+      current: 0,
+      total: 1,
+      message: 'Uploading user settings...'
+    });
+
+    console.log('[Migration] Uploading user settings...');
+    const settingsResult = await uploadUserSettings(currentUserId);
+    console.log('[Migration] User settings result:', settingsResult);
+    if (!settingsResult.success && settingsResult.error) {
+      errors.push(settingsResult.error);
+    }
 
     // Mark migration as done
     localStorage.setItem(MIGRATION_FLAG_KEY, 'true');

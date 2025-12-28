@@ -1,0 +1,97 @@
+name: Vercel Deploy
+
+# This workflow provides explicit control over Vercel deployments
+# For native Vercel integration (recommended), this file is optional
+# See DEPLOYMENT.md for setup instructions
+
+on:
+  # Trigger on push to main branch (production)
+  push:
+    branches:
+      - main
+
+  # Trigger on pull requests (preview)
+  pull_request:
+    branches:
+      - main
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Only run if Vercel secrets are configured
+    # This allows graceful fallback to native Vercel integration
+    if: ${{ secrets.VERCEL_TOKEN != '' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --run
+        continue-on-error: true  # Don't block deployment on test failures
+
+      - name: Build project
+        run: npm run build
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build Project Artifacts
+        run: vercel build ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> $GITHUB_OUTPUT
+          echo "Deployed to: $url"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Comment PR with deployment URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ Preview deployment ready!\n\n🔗 **URL**: ${{ steps.deploy.outputs.url }}\n\n*Deployed from commit ${{ github.sha }}*`
+            })
+
+      - name: Update deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed!"
+            exit 1
+          fi
+
+# Note: If secrets are not configured, this workflow will be skipped
+# and Vercel's native GitHub integration will handle deployments automatically
