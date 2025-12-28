@@ -716,18 +716,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (supabaseUserId) {
         setDataSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
 
-        // Check if online before trying Supabase
-        if (!isOnline()) {
-          console.log('[AppContext] Offline, loading from localStorage cache');
-          loadFromLocalStorage();
-          setDataSyncStatus({
-            isLoading: false,
-            lastSynced: null,
-            error: 'Offline - using cached data',
-            source: 'localStorage',
-          });
-          return;
-        }
+        // Bypass isOnline() check - navigator.onLine can give false negatives
+        // Always try Supabase when authenticated; fallback to localStorage on error
+        // if (!isOnline()) {
+        //   console.log('[AppContext] Offline, loading from localStorage cache');
+        //   loadFromLocalStorage();
+        //   setDataSyncStatus({
+        //     isLoading: false,
+        //     lastSynced: null,
+        //     error: 'Offline - using cached data',
+        //     source: 'localStorage',
+        //   });
+        //   return;
+        // }
 
         try {
           console.log('[AppContext] Loading data from Supabase for user:', supabaseUserId);

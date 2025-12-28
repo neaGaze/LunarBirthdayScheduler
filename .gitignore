@@ -48,3 +48,4 @@ Thumbs.db
 credentials.json
 client_secrets.json
 google-credentials.json
+.vercel
