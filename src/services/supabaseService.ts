@@ -409,49 +409,12 @@ export async function updateBirthday(birthdayId: string, updates: Partial<LunarB
 export async function deleteBirthday(birthdayId: string, accessToken?: string) {
   console.log('[SupabaseService.deleteBirthday] ========== START ==========');
   console.log('[SupabaseService.deleteBirthday] Birthday ID:', birthdayId);
-  console.log('[SupabaseService.deleteBirthday] ID type:', typeof birthdayId);
   console.log('[SupabaseService.deleteBirthday] Access token provided:', !!accessToken);
 
-  // Get session to verify auth state
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('[SupabaseService.deleteBirthday] Session exists:', !!session);
-  console.log('[SupabaseService.deleteBirthday] Session user ID:', session?.user?.id);
-
-  // First, verify the birthday exists and check who owns it
-  try {
-    const { data: existingBirthday, error: checkError } = await supabase
-      .from('birthdays')
-      .select('id, user_id, name')
-      .eq('id', birthdayId)
-      .single();
-
-    console.log('[SupabaseService.deleteBirthday] Birthday lookup result:', existingBirthday);
-    console.log('[SupabaseService.deleteBirthday] Birthday lookup error:', checkError);
-
-    if (checkError) {
-      console.error('[SupabaseService.deleteBirthday] Birthday not found or access denied:', checkError);
-    } else if (existingBirthday) {
-      console.log('[SupabaseService.deleteBirthday] Found birthday:', existingBirthday.name);
-      console.log('[SupabaseService.deleteBirthday] Birthday user_id:', existingBirthday.user_id);
-      console.log('[SupabaseService.deleteBirthday] Current user_id:', session?.user?.id);
-      console.log('[SupabaseService.deleteBirthday] User IDs match:', existingBirthday.user_id === session?.user?.id);
-    }
-  } catch (checkErr) {
-    console.error('[SupabaseService.deleteBirthday] Error checking birthday:', checkErr);
+  if (!accessToken) {
+    console.error('[SupabaseService.deleteBirthday] No access token provided');
+    throw new Error('No access token available for deletion');
   }
-
-  // Use passed token or get from session
-  let token = accessToken;
-  if (!token) {
-    token = session?.access_token;
-  }
-
-  if (!token) {
-    console.error('[SupabaseService.deleteBirthday] No access token available');
-    throw new Error('No access token available');
-  }
-
-  console.log('[SupabaseService.deleteBirthday] Using token (first 20 chars):', token.substring(0, 20) + '...');
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -462,7 +425,7 @@ export async function deleteBirthday(birthdayId: string, accessToken?: string) {
     method: 'DELETE',
     headers: {
       'apikey': anonKey,
-      'Authorization': `Bearer ${token}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     }
   });
