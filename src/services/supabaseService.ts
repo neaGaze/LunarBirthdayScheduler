@@ -407,29 +407,88 @@ export async function updateBirthday(birthdayId: string, updates: Partial<LunarB
 }
 
 export async function deleteBirthday(birthdayId: string, accessToken?: string) {
-  console.log('[SupabaseService.deleteBirthday] Deleting:', birthdayId);
+  console.log('[SupabaseService.deleteBirthday] ========== START ==========');
+  console.log('[SupabaseService.deleteBirthday] Birthday ID:', birthdayId);
+  console.log('[SupabaseService.deleteBirthday] ID type:', typeof birthdayId);
+  console.log('[SupabaseService.deleteBirthday] Access token provided:', !!accessToken);
 
-  // If accessToken provided, we need to use the session to ensure proper RLS context
-  if (accessToken) {
-    // Verify we have a valid session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      throw new Error('No active session for deletion');
+  // Get session to verify auth state
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('[SupabaseService.deleteBirthday] Session exists:', !!session);
+  console.log('[SupabaseService.deleteBirthday] Session user ID:', session?.user?.id);
+
+  // First, verify the birthday exists and check who owns it
+  try {
+    const { data: existingBirthday, error: checkError } = await supabase
+      .from('birthdays')
+      .select('id, user_id, name')
+      .eq('id', birthdayId)
+      .single();
+
+    console.log('[SupabaseService.deleteBirthday] Birthday lookup result:', existingBirthday);
+    console.log('[SupabaseService.deleteBirthday] Birthday lookup error:', checkError);
+
+    if (checkError) {
+      console.error('[SupabaseService.deleteBirthday] Birthday not found or access denied:', checkError);
+    } else if (existingBirthday) {
+      console.log('[SupabaseService.deleteBirthday] Found birthday:', existingBirthday.name);
+      console.log('[SupabaseService.deleteBirthday] Birthday user_id:', existingBirthday.user_id);
+      console.log('[SupabaseService.deleteBirthday] Current user_id:', session?.user?.id);
+      console.log('[SupabaseService.deleteBirthday] User IDs match:', existingBirthday.user_id === session?.user?.id);
     }
+  } catch (checkErr) {
+    console.error('[SupabaseService.deleteBirthday] Error checking birthday:', checkErr);
   }
 
-  // Use the Supabase client directly - it handles RLS auth context automatically
-  const { error } = await supabase
-    .from('birthdays')
-    .delete()
-    .eq('id', birthdayId);
-
-  if (error) {
-    console.error('[SupabaseService.deleteBirthday] Error:', error);
-    throw error;
+  // Use passed token or get from session
+  let token = accessToken;
+  if (!token) {
+    token = session?.access_token;
   }
 
-  console.log('[SupabaseService.deleteBirthday] Success');
+  if (!token) {
+    console.error('[SupabaseService.deleteBirthday] No access token available');
+    throw new Error('No access token available');
+  }
+
+  console.log('[SupabaseService.deleteBirthday] Using token (first 20 chars):', token.substring(0, 20) + '...');
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  console.log('[SupabaseService.deleteBirthday] Making DELETE request to:', `${supabaseUrl}/rest/v1/birthdays?id=eq.${birthdayId}`);
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/birthdays?id=eq.${birthdayId}`, {
+    method: 'DELETE',
+    headers: {
+      'apikey': anonKey,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+  });
+
+  console.log('[SupabaseService.deleteBirthday] Response status:', response.status);
+  console.log('[SupabaseService.deleteBirthday] Response status text:', response.statusText);
+  console.log('[SupabaseService.deleteBirthday] Response headers:', Object.fromEntries(response.headers.entries()));
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SupabaseService.deleteBirthday] Error response:', errorText);
+
+    // Try to parse error as JSON
+    try {
+      const errorJson = JSON.parse(errorText);
+      console.error('[SupabaseService.deleteBirthday] Error details:', errorJson);
+    } catch (e) {
+      // Not JSON, already logged as text
+    }
+
+    throw new Error(`Failed to delete birthday: ${response.status} ${errorText}`);
+  }
+
+  const responseText = await response.text();
+  console.log('[SupabaseService.deleteBirthday] Success response:', responseText);
+  console.log('[SupabaseService.deleteBirthday] ========== DELETE SUCCESSFUL ==========');
 }
 
 // ============================================
