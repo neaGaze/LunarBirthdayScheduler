@@ -358,45 +358,83 @@ export class SyncService {
         });
       }
 
+      // Log current mappings before syncing
+      console.log('[Sync] Current event mappings:', this.getSyncedEventMappings());
+      console.log(`[Sync] Total events to sync: ${events.length}`);
+
       // Sync each event
       for (const event of events) {
         try {
-          console.log(`[Sync] Processing event: ${event.id} - ${event.title}`);
+          console.log(`\n[Sync] ====== Processing event ${event.id} ======`);
+          console.log(`[Sync] Title: ${event.title}`);
+          console.log(`[Sync] Date: ${event.gregorianDate.year}-${event.gregorianDate.month}-${event.gregorianDate.day}`);
+
           const googleEvent = this.nepaliEventService.convertToGoogleCalendarEvent(event);
           const existingGoogleId = this.syncedEventIds.get(event.id);
-          console.log(`[Sync] Existing Google ID for ${event.id}:`, existingGoogleId);
+          console.log(`[Sync] Local mapping check - Event ID: ${event.id} -> Google ID: ${existingGoogleId || 'none'}`);
 
           let createdEvent;
           if (existingGoogleId) {
-            // Update existing event
-            console.log(`[Sync] Updating existing event...`);
+            // Update existing event using saved mapping
+            console.log(`[Sync] ✓ Found in local mapping, updating existing event with ID: ${existingGoogleId}`);
             createdEvent = await this.googleCalendarService.updateEvent(
               config.calendarId,
               existingGoogleId,
               googleEvent
             );
+            console.log(`[Sync] ✓ Successfully updated existing event`);
           } else {
-            // Create new event
-            console.log(`[Sync] Creating new event...`);
-            createdEvent = await this.googleCalendarService.createEvent(
-              config.calendarId,
-              googleEvent
-            );
-            console.log(`[Sync] Created event with Google ID:`, createdEvent.id);
+            // Check if event already exists in Google Calendar by title and date
+            const eventDate = googleEvent.start.date || googleEvent.start.dateTime || '';
+            console.log(`[Sync] ✗ No local mapping found, searching Google Calendar...`);
+            console.log(`[Sync] Search parameters - Title: "${event.title}", Date: ${eventDate}`);
 
-            if (createdEvent.id) {
-              this.syncedEventIds.set(event.id, createdEvent.id);
-              console.log(`[Sync] Saved mapping: ${event.id} -> ${createdEvent.id}`);
+            const existingEvent = await this.googleCalendarService.findEventByTitleAndDate(
+              config.calendarId,
+              event.title,
+              eventDate
+            );
+
+            if (existingEvent && existingEvent.id) {
+              // Event already exists in Google Calendar, update it
+              console.log(`[Sync] ✓ Found duplicate in Google Calendar with ID: ${existingEvent.id}`);
+              console.log(`[Sync] Updating existing event instead of creating new one`);
+              createdEvent = await this.googleCalendarService.updateEvent(
+                config.calendarId,
+                existingEvent.id,
+                googleEvent
+              );
+
+              // Save the mapping for future syncs
+              this.syncedEventIds.set(event.id, existingEvent.id);
+              console.log(`[Sync] ✓ Saved new mapping: ${event.id} -> ${existingEvent.id}`);
+              result.skippedCount++;
+            } else {
+              // Create new event
+              console.log(`[Sync] ✗ No duplicate found in Google Calendar`);
+              console.log(`[Sync] Creating new event...`);
+              createdEvent = await this.googleCalendarService.createEvent(
+                config.calendarId,
+                googleEvent
+              );
+              console.log(`[Sync] ✓ Created new event with Google ID: ${createdEvent.id}`);
+
+              if (createdEvent.id) {
+                this.syncedEventIds.set(event.id, createdEvent.id);
+                console.log(`[Sync] ✓ Saved new mapping: ${event.id} -> ${createdEvent.id}`);
+              }
             }
           }
 
           result.successCount++;
+          console.log(`[Sync] ====== Completed event ${event.id} ======\n`);
         } catch (error) {
           result.failureCount++;
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error occurred';
           result.errors.push(`Failed to sync event "${event.title}": ${errorMessage}`);
-          console.error(`[Sync] Error syncing event ${event.id}:`, errorMessage);
+          console.error(`[Sync] ✗ Error syncing event ${event.id}:`, errorMessage);
+          console.error(`[Sync] Error details:`, error);
         }
       }
 
