@@ -384,6 +384,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('Birthday ID:', id);
         console.log('syncService exists:', !!syncService);
         console.log('googleCalendarService exists:', !!googleCalendarService);
+        console.log('supabaseUserId:', supabaseUserId);
+        console.log('supabaseAccessToken exists:', !!supabaseAccessToken);
+        console.log('Will attempt Supabase deletion:', !!(supabaseUserId && supabaseAccessToken));
 
         nepaliEventService.deleteLunarBirthday(id);
         const newBirthdays = birthdays.filter((b) => b.id !== id);
