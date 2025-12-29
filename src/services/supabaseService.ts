@@ -406,9 +406,30 @@ export async function updateBirthday(birthdayId: string, updates: Partial<LunarB
   return dbToBirthday(data);
 }
 
-export async function deleteBirthday(birthdayId: string) {
-  const { error } = await supabase.from('birthdays').delete().eq('id', birthdayId);
-  if (error) throw error;
+export async function deleteBirthday(birthdayId: string, accessToken?: string) {
+  console.log('[SupabaseService.deleteBirthday] Deleting:', birthdayId);
+
+  // If accessToken provided, we need to use the session to ensure proper RLS context
+  if (accessToken) {
+    // Verify we have a valid session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session for deletion');
+    }
+  }
+
+  // Use the Supabase client directly - it handles RLS auth context automatically
+  const { error } = await supabase
+    .from('birthdays')
+    .delete()
+    .eq('id', birthdayId);
+
+  if (error) {
+    console.error('[SupabaseService.deleteBirthday] Error:', error);
+    throw error;
+  }
+
+  console.log('[SupabaseService.deleteBirthday] Success');
 }
 
 // ============================================

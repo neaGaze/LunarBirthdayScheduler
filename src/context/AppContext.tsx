@@ -390,9 +390,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBirthdays(newBirthdays);
 
         // If authenticated, Supabase is primary; localStorage is cache
-        if (supabaseUserId) {
+        if (supabaseUserId && supabaseAccessToken) {
           try {
-            await SupabaseService.deleteBirthday(id);
+            console.log('[deleteBirthday] Deleting from Supabase...');
+            await SupabaseService.deleteBirthday(id, supabaseAccessToken);
             console.log('[Supabase] Birthday deleted:', id);
             localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           } catch (error) {
@@ -401,6 +402,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
           }
         } else {
+          console.log('[deleteBirthday] No supabaseUserId/token, only deleting locally');
           localStorage.setItem('nepali_birthdays', JSON.stringify(newBirthdays));
         }
 
@@ -467,7 +469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('========== DELETE BIRTHDAY END ==========');
       }
     },
-    [birthdays, nepaliEventService, supabaseUserId, syncService, googleCalendarService, showNotification]
+    [birthdays, nepaliEventService, supabaseUserId, supabaseAccessToken, syncService, googleCalendarService, showNotification]
   );
 
   const syncEvents = useCallback(
