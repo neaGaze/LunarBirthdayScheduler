@@ -397,18 +397,36 @@ export class GoogleCalendarService {
     }
 
     try {
-      // Search for events on the specific date
-      // Create time range for the entire day
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      // Parse the date - could be "YYYY-MM-DD" (all-day) or "YYYY-MM-DDTHH:mm:ss.sssZ" (timed)
+      let timeMin: string;
+      let timeMax: string;
 
+      if (date.includes('T')) {
+        // DateTime format - search around this specific time (±12 hours for safety)
+        const eventTime = new Date(date);
+        const before = new Date(eventTime);
+        before.setHours(before.getHours() - 12);
+        const after = new Date(eventTime);
+        after.setHours(after.getHours() + 12);
+        timeMin = before.toISOString();
+        timeMax = after.toISOString();
+      } else {
+        // Date-only format (all-day event) - search the entire day in UTC
+        // For "2025-06-15", we want to search from 2025-06-15T00:00:00Z to 2025-06-16T00:00:00Z
+        timeMin = `${date}T00:00:00Z`;
+        const dateParts = date.split('-');
+        const nextDay = new Date(Date.UTC(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]) + 1));
+        timeMax = nextDay.toISOString();
+      }
+
+      console.log(`[GoogleCalendar] Searching for "${title}" between ${timeMin} and ${timeMax}`);
+
+      // Get all events in the time range (without text search filter to be more comprehensive)
       const params = new URLSearchParams({
-        timeMin: startOfDay.toISOString(),
-        timeMax: endOfDay.toISOString(),
-        q: title, // Search query for the title
-        singleEvents: 'true'
+        timeMin,
+        timeMax,
+        singleEvents: 'true',
+        maxResults: '250' // Get more results to ensure we don't miss the event
       });
 
       const response = await fetch(
@@ -429,11 +447,23 @@ export class GoogleCalendarService {
       const data = await response.json();
       const events = data.items || [];
 
+      console.log(`[GoogleCalendar] Found ${events.length} events in date range`);
+      if (events.length > 0) {
+        console.log('[GoogleCalendar] Event titles:', events.map((e: CalendarEvent) => e.summary));
+      }
+
       // Find exact match by title
       const exactMatch = events.find((e: CalendarEvent) => e.summary === title);
+
+      if (exactMatch) {
+        console.log(`[GoogleCalendar] Found exact match with ID: ${exactMatch.id}`);
+      } else {
+        console.log(`[GoogleCalendar] No exact match found for "${title}"`);
+      }
+
       return exactMatch || null;
     } catch (error) {
-      console.warn('Error searching for existing event:', error);
+      console.warn('[GoogleCalendar] Error searching for existing event:', error);
       return null; // Return null on error to allow creation
     }
   }
