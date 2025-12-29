@@ -406,9 +406,40 @@ export async function updateBirthday(birthdayId: string, updates: Partial<LunarB
   return dbToBirthday(data);
 }
 
-export async function deleteBirthday(birthdayId: string) {
-  const { error } = await supabase.from('birthdays').delete().eq('id', birthdayId);
-  if (error) throw error;
+export async function deleteBirthday(birthdayId: string, accessToken?: string) {
+  console.log('[SupabaseService.deleteBirthday] Deleting:', birthdayId);
+
+  // Use passed token or try to get from session
+  let token = accessToken;
+  if (!token) {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token;
+  }
+
+  if (!token) {
+    throw new Error('No access token available');
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/birthdays?id=eq.${birthdayId}`, {
+    method: 'DELETE',
+    headers: {
+      'apikey': anonKey,
+      'Authorization': `Bearer ${token}`,
+    }
+  });
+
+  console.log('[SupabaseService.deleteBirthday] Response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SupabaseService.deleteBirthday] Error:', errorText);
+    throw new Error(`Failed to delete birthday: ${errorText}`);
+  }
+
+  console.log('[SupabaseService.deleteBirthday] Success');
 }
 
 // ============================================
