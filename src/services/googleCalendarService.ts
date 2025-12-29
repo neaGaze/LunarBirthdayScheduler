@@ -383,4 +383,58 @@ export class GoogleCalendarService {
     const data = await response.json();
     return data.items || [];
   }
+
+  /**
+   * Find an existing event by title and date
+   */
+  async findEventByTitleAndDate(
+    calendarId: string,
+    title: string,
+    date: string
+  ): Promise<CalendarEvent | null> {
+    if (!this.accessToken) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      // Search for events on the specific date
+      // Create time range for the entire day
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const params = new URLSearchParams({
+        timeMin: startOfDay.toISOString(),
+        timeMax: endOfDay.toISOString(),
+        q: title, // Search query for the title
+        singleEvents: 'true'
+      });
+
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to search events: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      const events = data.items || [];
+
+      // Find exact match by title
+      const exactMatch = events.find((e: CalendarEvent) => e.summary === title);
+      return exactMatch || null;
+    } catch (error) {
+      console.warn('Error searching for existing event:', error);
+      return null; // Return null on error to allow creation
+    }
+  }
 }

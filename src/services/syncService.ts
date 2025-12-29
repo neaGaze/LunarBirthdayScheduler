@@ -376,17 +376,42 @@ export class SyncService {
               googleEvent
             );
           } else {
-            // Create new event
-            console.log(`[Sync] Creating new event...`);
-            createdEvent = await this.googleCalendarService.createEvent(
-              config.calendarId,
-              googleEvent
-            );
-            console.log(`[Sync] Created event with Google ID:`, createdEvent.id);
+            // Check if event already exists in Google Calendar by title and date
+            const eventDate = googleEvent.start.date || googleEvent.start.dateTime || '';
+            console.log(`[Sync] Checking for existing event: ${event.title} on ${eventDate}`);
 
-            if (createdEvent.id) {
-              this.syncedEventIds.set(event.id, createdEvent.id);
-              console.log(`[Sync] Saved mapping: ${event.id} -> ${createdEvent.id}`);
+            const existingEvent = await this.googleCalendarService.findEventByTitleAndDate(
+              config.calendarId,
+              event.title,
+              eventDate
+            );
+
+            if (existingEvent && existingEvent.id) {
+              // Event already exists in Google Calendar, update it
+              console.log(`[Sync] Found existing event in Google Calendar with ID: ${existingEvent.id}`);
+              createdEvent = await this.googleCalendarService.updateEvent(
+                config.calendarId,
+                existingEvent.id,
+                googleEvent
+              );
+
+              // Save the mapping for future syncs
+              this.syncedEventIds.set(event.id, existingEvent.id);
+              console.log(`[Sync] Saved mapping for existing event: ${event.id} -> ${existingEvent.id}`);
+              result.skippedCount++;
+            } else {
+              // Create new event
+              console.log(`[Sync] No existing event found, creating new event...`);
+              createdEvent = await this.googleCalendarService.createEvent(
+                config.calendarId,
+                googleEvent
+              );
+              console.log(`[Sync] Created event with Google ID:`, createdEvent.id);
+
+              if (createdEvent.id) {
+                this.syncedEventIds.set(event.id, createdEvent.id);
+                console.log(`[Sync] Saved mapping: ${event.id} -> ${createdEvent.id}`);
+              }
             }
           }
 

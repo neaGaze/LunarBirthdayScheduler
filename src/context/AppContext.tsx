@@ -548,17 +548,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Store the calendar ID for later use in birthday deletion
         localStorage.setItem('nepali_calendar_id', config.calendarId);
 
+        const newEventsCount = result.successCount - result.skippedCount;
+        const existingEventsCount = result.skippedCount;
+
+        let message = '';
+        if (existingEventsCount > 0) {
+          message = `Synced ${result.successCount} events (${newEventsCount} new, ${existingEventsCount} already existed). ${result.failureCount} failed.`;
+        } else {
+          message = `Synced ${result.successCount} events. ${result.failureCount} failed.`;
+        }
+
         setSyncResult({
           success: result.successCount,
           failed: result.failureCount,
-          message: `Synced ${result.successCount} events. ${result.failureCount} failed.`,
+          message,
           errors: result.errors
         });
+
+        let notificationMessage = '';
+        if (result.failureCount === 0) {
+          if (existingEventsCount > 0) {
+            notificationMessage = `Successfully synced ${result.successCount} events (${newEventsCount} new, ${existingEventsCount} already existed)!`;
+          } else {
+            notificationMessage = `Successfully synced ${result.successCount} events!`;
+          }
+        } else {
+          notificationMessage = `Synced ${result.successCount} events with ${result.failureCount} failures`;
+        }
+
         showNotification(
           result.failureCount === 0 ? 'success' : 'error',
-          result.failureCount === 0
-            ? `Successfully synced ${result.successCount} events!`
-            : `Synced ${result.successCount} events with ${result.failureCount} failures`
+          notificationMessage
         );
       } catch (error) {
         console.error('Sync error:', error);
