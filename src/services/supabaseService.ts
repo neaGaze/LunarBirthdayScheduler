@@ -469,7 +469,11 @@ export async function deleteBirthday(birthdayId: string, accessToken?: string) {
 
   console.log('[SupabaseService.deleteBirthday] Response status:', response.status);
   console.log('[SupabaseService.deleteBirthday] Response status text:', response.statusText);
-  console.log('[SupabaseService.deleteBirthday] Response headers:', Object.fromEntries(response.headers.entries()));
+
+  // Log important headers
+  const contentType = response.headers.get('content-type');
+  const contentRange = response.headers.get('content-range');
+  console.log('[SupabaseService.deleteBirthday] Response headers:', { contentType, contentRange });
 
   if (!response.ok) {
     const errorText = await response.text();
