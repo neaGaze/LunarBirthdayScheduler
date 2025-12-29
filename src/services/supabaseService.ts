@@ -409,34 +409,24 @@ export async function updateBirthday(birthdayId: string, updates: Partial<LunarB
 export async function deleteBirthday(birthdayId: string, accessToken?: string) {
   console.log('[SupabaseService.deleteBirthday] Deleting:', birthdayId);
 
-  // Use passed token or try to get from session
-  let token = accessToken;
-  if (!token) {
+  // If accessToken provided, we need to use the session to ensure proper RLS context
+  if (accessToken) {
+    // Verify we have a valid session
     const { data: { session } } = await supabase.auth.getSession();
-    token = session?.access_token;
-  }
-
-  if (!token) {
-    throw new Error('No access token available');
-  }
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-  const response = await fetch(`${supabaseUrl}/rest/v1/birthdays?id=eq.${birthdayId}`, {
-    method: 'DELETE',
-    headers: {
-      'apikey': anonKey,
-      'Authorization': `Bearer ${token}`,
+    if (!session) {
+      throw new Error('No active session for deletion');
     }
-  });
+  }
 
-  console.log('[SupabaseService.deleteBirthday] Response status:', response.status);
+  // Use the Supabase client directly - it handles RLS auth context automatically
+  const { error } = await supabase
+    .from('birthdays')
+    .delete()
+    .eq('id', birthdayId);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[SupabaseService.deleteBirthday] Error:', errorText);
-    throw new Error(`Failed to delete birthday: ${errorText}`);
+  if (error) {
+    console.error('[SupabaseService.deleteBirthday] Error:', error);
+    throw error;
   }
 
   console.log('[SupabaseService.deleteBirthday] Success');
