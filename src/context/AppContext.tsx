@@ -128,12 +128,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('nepali_calendar_sync_mappings');
     localStorage.removeItem('nepali_calendar_migration_to_supabase_done');
 
+    // Clear React state
+    console.log('[AppContext] Clearing React state');
+    setEvents([]);
+    setBirthdays([]);
     setGoogleCalendarService(null);
     setSyncService(null);
     setIsAuthenticated(false);
     setHasGoogleCalendarAccess(false);
     setUser(null);
     setSupabaseUserId(null);
+    setSupabaseAccessToken(null);
+    setDataSyncStatus({
+      isLoading: false,
+      lastSynced: null,
+      error: null,
+      source: null,
+    });
     showNotification('info', 'Logged out successfully');
     console.log('[AppContext] Logout complete');
   }, [showNotification]);
@@ -722,6 +733,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         } catch (error) {
           console.error('[Supabase] Error ensuring user exists:', error);
+        }
+
+        // Explicitly load data from Supabase on SIGNED_IN event
+        // This ensures data is refreshed after login, especially after logout
+        if (event === 'SIGNED_IN') {
+          console.log('[Supabase Auth] SIGNED_IN event - loading data from Supabase');
+          try {
+            const [supabaseEvents, supabaseBirthdays] = await withRetry(
+              async () => Promise.all([
+                SupabaseService.getEvents(session.user.id),
+                SupabaseService.getBirthdays(session.user.id),
+              ]),
+              { maxRetries: 3, delayMs: 1000 }
+            );
+
+            console.log('[Supabase Auth] Loaded from Supabase on login:', {
+              events: supabaseEvents.length,
+              birthdays: supabaseBirthdays.length,
+            });
+
+            setEvents(supabaseEvents);
+            setBirthdays(supabaseBirthdays);
+
+            // Update localStorage cache
+            localStorage.setItem('nepali_events', JSON.stringify(supabaseEvents));
+            localStorage.setItem('nepali_birthdays', JSON.stringify(supabaseBirthdays));
+
+            setDataSyncStatus({
+              isLoading: false,
+              lastSynced: new Date(),
+              error: null,
+              source: 'supabase',
+            });
+          } catch (error) {
+            console.error('[Supabase Auth] Error loading data on login:', error);
+            setDataSyncStatus({
+              isLoading: false,
+              lastSynced: null,
+              error: 'Failed to load data from cloud',
+              source: null,
+            });
+          }
         }
       } else {
         console.log('[Supabase] No authenticated user');
