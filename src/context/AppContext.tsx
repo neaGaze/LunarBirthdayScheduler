@@ -117,6 +117,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Immediately clear all local state
     console.log('[AppContext] Clearing local state');
     localStorage.removeItem('google_access_token');
+
+    // Clear all user data from localStorage
+    console.log('[AppContext] Clearing user data from localStorage');
+    localStorage.removeItem('nepali_events');
+    localStorage.removeItem('nepali_birthdays');
+    localStorage.removeItem('nepali_calendar_id');
+    localStorage.removeItem('nepali_sync_config');
+    localStorage.removeItem('nepali_calendar_sync_config');
+    localStorage.removeItem('nepali_calendar_sync_mappings');
+    localStorage.removeItem('nepali_calendar_migration_to_supabase_done');
+
     setGoogleCalendarService(null);
     setSyncService(null);
     setIsAuthenticated(false);
