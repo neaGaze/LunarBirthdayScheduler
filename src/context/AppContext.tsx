@@ -656,6 +656,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setGoogleCalendarService(null);
             setSyncService(null);
           }
+
         } else {
           // No auth session - don't use Supabase
           console.log('[Supabase] No auth session, using localStorage only');
@@ -738,7 +739,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Explicitly load data from Supabase on SIGNED_IN event
         // This ensures data is refreshed after login, especially after logout
         if (event === 'SIGNED_IN') {
-          console.log('[Supabase Auth] SIGNED_IN event - loading data from Supabase');
+          console.log('[Supabase Auth] ========== SIGNED_IN EVENT DETECTED ==========');
+          console.log('[Supabase Auth] Loading data from Supabase for user:', session.user.id);
           try {
             const [supabaseEvents, supabaseBirthdays] = await withRetry(
               async () => Promise.all([
@@ -748,10 +750,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               { maxRetries: 3, delayMs: 1000 }
             );
 
-            console.log('[Supabase Auth] Loaded from Supabase on login:', {
+            console.log('[Supabase Auth] ✅ Successfully loaded from Supabase on SIGNED_IN:', {
               events: supabaseEvents.length,
               birthdays: supabaseBirthdays.length,
             });
+
+            if (supabaseEvents.length > 0) {
+              console.log('[Supabase Auth] Sample event:', supabaseEvents[0]);
+            } else {
+              console.warn('[Supabase Auth] ⚠️ No events found in Supabase for this user');
+            }
+
+            if (supabaseBirthdays.length > 0) {
+              console.log('[Supabase Auth] Sample birthday:', supabaseBirthdays[0]);
+            } else {
+              console.warn('[Supabase Auth] ⚠️ No birthdays found in Supabase for this user');
+            }
 
             setEvents(supabaseEvents);
             setBirthdays(supabaseBirthdays);
@@ -760,6 +774,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('nepali_events', JSON.stringify(supabaseEvents));
             localStorage.setItem('nepali_birthdays', JSON.stringify(supabaseBirthdays));
 
+            console.log('[Supabase Auth] ✅ Updated React state and localStorage cache');
+
             setDataSyncStatus({
               isLoading: false,
               lastSynced: new Date(),
@@ -767,7 +783,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               source: 'supabase',
             });
           } catch (error) {
-            console.error('[Supabase Auth] Error loading data on login:', error);
+            console.error('[Supabase Auth] ❌ ERROR loading data on SIGNED_IN:', error);
+            console.error('[Supabase Auth] Error details:', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : undefined,
+            });
             setDataSyncStatus({
               isLoading: false,
               lastSynced: null,
@@ -820,7 +840,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // }
 
         try {
-          console.log('[AppContext] Loading data from Supabase for user:', supabaseUserId);
+          console.log('[AppContext] ========== LOADING DATA FROM SUPABASE ==========');
+          console.log('[AppContext] User ID:', supabaseUserId);
+          console.log('[AppContext] localStorage before load:', {
+            events: localStorage.getItem('nepali_events')?.substring(0, 100),
+            birthdays: localStorage.getItem('nepali_birthdays')?.substring(0, 100),
+          });
 
           // Use retry logic for network resilience
           const [supabaseEvents, supabaseBirthdays] = await withRetry(
@@ -831,10 +856,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             { maxRetries: 3, delayMs: 1000 }
           );
 
-          console.log('[AppContext] Loaded from Supabase:', {
+          console.log('[AppContext] ✅ Successfully loaded from Supabase:', {
             events: supabaseEvents.length,
             birthdays: supabaseBirthdays.length,
           });
+
+          if (supabaseEvents.length > 0) {
+            console.log('[AppContext] Sample event:', supabaseEvents[0]);
+          }
+          if (supabaseBirthdays.length > 0) {
+            console.log('[AppContext] Sample birthday:', supabaseBirthdays[0]);
+          }
 
           setEvents(supabaseEvents);
           setBirthdays(supabaseBirthdays);
@@ -843,6 +875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('nepali_events', JSON.stringify(supabaseEvents));
           localStorage.setItem('nepali_birthdays', JSON.stringify(supabaseBirthdays));
 
+          console.log('[AppContext] ✅ Updated React state and localStorage cache');
+
           setDataSyncStatus({
             isLoading: false,
             lastSynced: new Date(),
@@ -850,7 +884,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             source: 'supabase',
           });
         } catch (error) {
-          console.error('[AppContext] Error loading from Supabase after retries, falling back to localStorage:', error);
+          console.error('[AppContext] ❌ ERROR loading from Supabase:', error);
+          console.error('[AppContext] Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+
           setDataSyncStatus(prev => ({
             ...prev,
             isLoading: false,
@@ -858,6 +897,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }));
 
           // Fallback to localStorage
+          console.log('[AppContext] Falling back to localStorage...');
           loadFromLocalStorage();
           setDataSyncStatus(prev => ({ ...prev, source: 'localStorage' }));
         }
