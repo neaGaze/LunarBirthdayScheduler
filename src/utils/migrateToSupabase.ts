@@ -321,7 +321,8 @@ async function uploadSyncMappings(
  * Upload user settings (sync config) to Supabase
  */
 async function uploadUserSettings(
-  userId: string
+  userId: string,
+  accessToken?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Load sync config from localStorage
@@ -341,7 +342,7 @@ async function uploadUserSettings(
 
     // Convert and save to Supabase
     const dbSettings = SupabaseService.syncConfigToDb(syncConfig);
-    await SupabaseService.upsertUserSettings(userId, dbSettings);
+    await SupabaseService.upsertUserSettings(userId, dbSettings, accessToken);
     console.log('[Migration] Saved user settings to Supabase');
 
     return { success: true };
@@ -489,7 +490,7 @@ export async function migrateToSupabase(
     });
 
     console.log('[Migration] Uploading user settings...');
-    const settingsResult = await uploadUserSettings(currentUserId);
+    const settingsResult = await uploadUserSettings(currentUserId, accessToken);
     console.log('[Migration] User settings result:', settingsResult);
     if (!settingsResult.success && settingsResult.error) {
       errors.push(settingsResult.error);

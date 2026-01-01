@@ -524,18 +524,51 @@ export async function updateUserSettings(userId: string, updates: DbUserSettings
   return data;
 }
 
-export async function upsertUserSettings(userId: string, settings: Omit<DbUserSettingsInsert, 'user_id'>) {
-  const { data, error } = await supabase
-    .from('user_settings')
-    .upsert({
-      user_id: userId,
-      ...settings,
-    })
-    .select()
-    .single();
+export async function upsertUserSettings(userId: string, settings: Omit<DbUserSettingsInsert, 'user_id'>, accessToken?: string) {
+  console.log('[SupabaseService.upsertUserSettings] Starting...', { userId, hasToken: !!accessToken });
 
-  if (error) throw error;
-  return data;
+  // Use passed token or try to get from session
+  let token = accessToken;
+  if (!token) {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token;
+  }
+
+  if (!token) {
+    throw new Error('No access token available');
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const settingsData = {
+    user_id: userId,
+    ...settings,
+  };
+
+  console.log('[SupabaseService.upsertUserSettings] Making upsert request...');
+  const response = await fetch(`${supabaseUrl}/rest/v1/user_settings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': anonKey,
+      'Authorization': `Bearer ${token}`,
+      'Prefer': 'resolution=merge-duplicates,return=representation'
+    },
+    body: JSON.stringify(settingsData)
+  });
+
+  console.log('[SupabaseService.upsertUserSettings] Response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SupabaseService.upsertUserSettings] Error:', errorText);
+    throw new Error(`Failed to upsert user settings: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('[SupabaseService.upsertUserSettings] Success');
+  return Array.isArray(data) ? data[0] : data;
 }
 
 // Helper to convert app sync config to DB format
